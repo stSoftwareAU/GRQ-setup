@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lecklogic.highprioritytask</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/USERNAME/src/GRQ/run.sh</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>300</integer> <!-- 300 seconds = 5 minutes -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>Nice</key>
+    <integer>-20</integer> <!-- Sets the priority of the job. -20 is very high priority. -->
+</dict>
+</plist>

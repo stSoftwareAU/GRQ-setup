@@ -1,0 +1,19 @@
+SHELL=/bin/bash
+# ┌─> minute (0 - 59)
+# │  ┌─> hour (0 - 23)
+# │  │  ┌─> day of the month (1 - 31)
+# │  │  │  ┌─> month (1 - 12)
+# │  │  │  │  ┌─> day of the week (0 - 6) (Sunday to Saturday; 7 is also Sunday on some systems)
+# │  │  │  │  │  ┌─> Command
+# │  │  │  │  │  |
+*/5  *  *  *  *  mkdir -p ~/logs; ~/src/GRQ/run.sh > ~/logs/run.log 2>&1
+
+#3,23,43 * * * * ~/src2/GRQ/worker/score.sh> ~/logs/scores.log 2>&1
+#30   22,4 * * * ~/src3/GRQ-sentimentV2/run_sentiment.sh > ~/logs/sentiment.err 2>&1
+
+# Half an hour after NYSE closes
+#33   7 * 4-9 * ~/src2/GRQ-marketdata2024/run_fetch.sh > ~/logs/market.err 2>&1
+#33   6 * 1-3,10,11,12 * ~/src2/GRQ-marketdata2024/run_fetch.sh > ~/logs/market.err 2>&1
+
+#15   22,8 * * * ~/src2/GRQ-FX/run_fx.sh > ~/logs/fx.err 2>&1
+#0    22,4 * * * ~/src2/GRQ-commodities/run_commodities.sh > ~/logs/commodities.err 2>&1
