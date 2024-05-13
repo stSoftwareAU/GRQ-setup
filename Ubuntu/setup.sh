@@ -33,9 +33,10 @@ case "${unameOut}" in
       sudo apt upgrade -y
       sudo apt install -y jq curl
       sudo apt autoremove -y
+      sudo apt autoremove --purge -y
     fi
     if [[ ! -d ~/.deno/bin ]]; then
-       curl -fsSL https://deno.land/x/install/install.sh | sh
+       curl -fsSL https://deno.land/install.sh | sh
     fi
     ;;
 esac
