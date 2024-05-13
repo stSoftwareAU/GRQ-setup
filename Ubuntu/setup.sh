@@ -32,7 +32,6 @@ case "${unameOut}" in
       sudo apt update
       sudo apt upgrade -y
       sudo apt install -y jq curl
-      sudo apt autoremove -y
       sudo apt autoremove --purge -y
     fi
     if [[ ! -d ~/.deno/bin ]]; then
