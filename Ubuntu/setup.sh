@@ -24,3 +24,4 @@ fi
 if [[ ! -d ~/.deno/bin ]]; then
    curl -fsSL https://deno.land/install.sh | sh
 fi
+sudo timedatectl set-timezone Australia/Sydney
