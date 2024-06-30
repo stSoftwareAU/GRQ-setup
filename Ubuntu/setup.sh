@@ -18,7 +18,7 @@ if [[ -n "$(which apt-get)" ]]; then
 
   sudo apt update
   sudo apt upgrade -y
-  sudo apt install -y jq curl
+  sudo apt install -y jq curl zip
   sudo apt autoremove --purge -y
 fi
 if [[ ! -d ~/.deno/bin ]]; then
