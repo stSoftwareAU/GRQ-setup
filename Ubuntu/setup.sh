@@ -8,7 +8,7 @@ if [[ $EUID -eq 0 ]]; then
   exit 1
 fi
 
-crontab < crontab.txt
+#crontab < crontab.txt
 if [[ -n "$(which apt-get)" ]]; then
   set +e
   # sudo dpkg --purge ` dpkg -l | grep 'linux-modules-5'|cut -c 5-45| xargs`
