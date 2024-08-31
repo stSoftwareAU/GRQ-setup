@@ -14,3 +14,5 @@ CURRENT_USER=$(whoami)
 sed -i '' "s|USERNAME|$CURRENT_USER|g" ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
 
 launchctl load ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
+
+sudo systemsetup -setrestartfreeze on
