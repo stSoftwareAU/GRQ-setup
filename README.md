@@ -7,7 +7,7 @@
 6. git clone git@github.com:stSoftwareAU/GRQ.git
 7. vi GRQ/.option.txt
 8. GRQ/worker/upgrade.sh
-9. git config --global --edit
+  
 
 ![image](https://github.com/user-attachments/assets/d6b039fc-2926-4999-bfa1-e9c7e67b60e8)
 
