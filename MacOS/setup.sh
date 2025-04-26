@@ -126,6 +126,9 @@ echo "Create GitHub ssh key..."
 cat ~/.ssh/id_ed25519.pub
 read -p "Press enter to continue"
 GRQ/worker/upgrade.sh
+echo "PRIMARY_READ_URL=nigel@10.0.0.89:Training" > GRQ/.env
+echo "SECONDARY_READ_URL=nigel@10.0.0.11:Training" >> GRQ/.env
+
 EOF
 
   sudo chmod +x /Users/$USERNAME/setup.sh
