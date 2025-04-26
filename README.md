@@ -3,7 +3,7 @@
 2. ssh-copy-id nigel@10.0.0.11
 3. mkdir ~/src && cd ~/src
 4. git clone git@github.com:stSoftwareAU/GRQ-setup.git
-5. GRQ-setup/MacOS/setup.sh
+5. GRQ-setup/MacOS/setup.sh XX
 6. git clone git@github.com:stSoftwareAU/GRQ.git
 7. vi GRQ/.option.txt
 8. GRQ/worker/upgrade.sh
