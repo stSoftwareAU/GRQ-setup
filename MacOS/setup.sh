@@ -31,21 +31,27 @@ dscacheutil -flushcache
 sudo networksetup -setmanual "Ethernet" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
 sudo networksetup -setdnsservers "Ethernet" 8.8.8.8 8.8.4.4
 
-# Detect Ethernet and Wi-Fi interfaces dynamically
-ETHERNET=$(networksetup -listallnetworkservices | grep -E 'Ethernet|LAN|en[0-9]' | head -n1)
-WIFI=$(networksetup -listallnetworkservices | grep -E 'Wi-Fi|AirPort' | head -n1)
+# Detect exact Ethernet and Wi-Fi network service names
+echo "Detecting network interfaces..."
+ETHERNET=$(networksetup -listallnetworkservices | grep -Ei 'ethernet|lan' | head -n1 | sed 's/^\*//;s/^ //')
+WIFI=$(networksetup -listallnetworkservices | grep -Ei 'wi-?fi|airport' | head -n1 | sed 's/^\*//;s/^ //')
 
 if [[ -z "$ETHERNET" || -z "$WIFI" ]]; then
-  echo "Error detecting network interfaces."
+  echo "Error detecting interfaces. Detected Ethernet='$ETHERNET', Wi-Fi='$WIFI'"
   networksetup -listallnetworkservices
   exit 1
 fi
 
+echo "Detected Ethernet service: '$ETHERNET'"
+echo "Detected Wi-Fi service: '$WIFI'"
+
 # Configure Ethernet with static IP and DNS
+echo "Configuring $ETHERNET with static IP $IP_ADDRESS"
 sudo networksetup -setmanual "$ETHERNET" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
 sudo networksetup -setdnsservers "$ETHERNET" 8.8.8.8 8.8.4.4
 
-# Set Ethernet priority over Wi-Fi (quotes fix applied here)
+# Set Ethernet priority over Wi-Fi (must quote properly)
+echo "Setting network service priority: Ethernet ($ETHERNET) over Wi-Fi ($WIFI)"
 sudo networksetup -ordernetworkservices "$ETHERNET" "$WIFI"
 
 # Restart automatically after freeze/power failure
