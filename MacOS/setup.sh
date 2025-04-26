@@ -95,25 +95,25 @@ sudo pmset repeat restart M "${REBOOT_HOUR}:0${RAND_MINUTE}:00"
 create_automated_user() {
   local USERNAME=$1
   local FULLNAME=$2
-  local EMOJI=$3
+  local PICTURE_NAME=$3
   
-  # Check if user exists
   if ! id -u "$USERNAME" &>/dev/null; then
     PASSWORD=$(openssl rand -base64 20)
     sudo sysadminctl -addUser "$USERNAME" -fullName "$FULLNAME" -password "$PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
     sudo createhomedir -c -u "$USERNAME"
-    echo "User $USERNAME created with secure random password."
+    echo "User $USERNAME created."
   else
     echo "User $USERNAME already exists."
   fi
 
-  # Set emoji user picture (using Apple's default emoji set)
-  EMOJI_PATH="/System/Library/User Template/English.lproj/Pictures/${EMOJI}.png"
-  if [[ -f "$EMOJI_PATH" ]]; then
-    sudo dscl . delete "/Users/$USERNAME" jpegphoto
-    sudo dscl . create "/Users/$USERNAME" Picture "$EMOJI_PATH"
+  # Set custom picture if available
+  LOCAL_PICTURE="${BASE_DIR}/${PICTURE_NAME}.png"
+  if [[ -f "$LOCAL_PICTURE" ]]; then
+    echo "Setting profile picture for $USERNAME from $LOCAL_PICTURE"
+    sudo dscl . delete "/Users/$USERNAME" jpegphoto || true
+    sudo dscl . create "/Users/$USERNAME" Picture "$LOCAL_PICTURE"
   else
-    echo "Emoji picture not found at $EMOJI_PATH"
+    echo "Picture $LOCAL_PICTURE not found, skipping profile picture for $USERNAME"
   fi
 }
 
