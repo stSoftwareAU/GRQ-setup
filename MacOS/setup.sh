@@ -119,8 +119,13 @@ fi
 # Push SSH key to admin
 ssh-copy-id -f nigel@10.0.0.11
 
-  git config --global user.email "\${USERNAME}-\${NODE_NUMBER}@lecklogic.com"
-  git config --global user.name "\${USERNAME} \${NODE_NUMBER}"
+git config --global user.email "\${USERNAME}-\${NODE_NUMBER}@lecklogic.com"
+git config --global user.name "\${USERNAME} \${NODE_NUMBER}"
+
+echo "Create GitHub ssh key..." 
+cat ~/.ssh/id_ed25519.pub
+read -p "Press enter to continue"
+GRQ/worker/upgrade.sh
 EOF
 
   sudo chmod +x /Users/$USERNAME/setup.sh
