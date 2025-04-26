@@ -1,24 +1,24 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.lecklogic.lowprioritytask</string>
+    <string>com.lecklogic.highprioritytask</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/sloth/GRQ/sloth.sh</string>
+        <string>/Users/rocket/GRQ/rocket.sh</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
+    <key>KeepAlive</key>
+    <true/>
     <key>Nice</key>
-    <integer>20</integer> <!-- Lowest CPU priority -->
+    <integer>-20</integer>
     <key>UserName</key>
-    <string>sloth</string>
+    <string>rocket</string>
     <key>WorkingDirectory</key>
-    <string>/Users/sloth</string>
+    <string>/Users/rocket</string>
     <key>StandardOutPath</key>
-    <string>/Users/sloth/logs/sloth.out.log</string>
+    <string>/Users/rocket/logs/rocket.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/sloth/logs/sloth.err.log</string>
+    <string>/Users/rocket/logs/rocket.err.log</string>
 </dict>
 </plist>
