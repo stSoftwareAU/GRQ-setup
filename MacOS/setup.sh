@@ -115,13 +115,6 @@ fi
 # Push SSH key to admin
 ssh-copy-id nigel@10.0.0.11
 
-# LaunchAgent load
-if [[ "$ROLE" == "high" ]]; then
-  launchctl bootstrap user/\$(id -u) "\$HOME/Library/LaunchAgents/com.lecklogic.highprioritytask.plist"
-elif [[ "$ROLE" == "low" ]]; then
-  launchctl bootstrap user/\$(id -u) "\$HOME/Library/LaunchAgents/com.lecklogic.lowprioritytask.plist"
-fi
-
 EOF
 
   sudo chmod +x /Users/$USERNAME/setup.sh
