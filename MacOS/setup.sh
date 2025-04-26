@@ -128,6 +128,7 @@ git config --global user.name "\${USERNAME} \${NODE_NUMBER}"
 echo "Create GitHub ssh key..." 
 cat ~/.ssh/id_ed25519.pub
 read -p "Press enter to continue"
+git clone --depth 1 git@github.com:stSoftwareAU/GRQ.git
 GRQ/worker/upgrade.sh
 echo "PRIMARY_READ_URL=nigel@10.0.0.89:Training" > GRQ/.env
 echo "SECONDARY_READ_URL=nigel@10.0.0.11:Training" >> GRQ/.env
