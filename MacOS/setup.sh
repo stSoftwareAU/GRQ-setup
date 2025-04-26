@@ -50,8 +50,8 @@ echo "Configuring Ethernet with static IP ${IP_ADDRESS}"
 sudo networksetup -setmanual "$ETHERNET" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
 sudo networksetup -setdnsservers "$ETHERNET" 8.8.8.8 8.8.4.4
 
-# Get current full list of network services
-ALL_SERVICES=$(networksetup -listallnetworkservices | sed 's/^\*//;s/^ //')
+# Get current full list of network services, skipping any non-service lines
+ALL_SERVICES=$(networksetup -listallnetworkservices | sed 's/^\*//;s/^ //' | grep -v '^An asterisk')
 
 # Remove Ethernet and Wi-Fi from their current positions
 REMAINING_SERVICES=$(echo "$ALL_SERVICES" | grep -vxF -e "$ETHERNET" -e "$WIFI")
@@ -59,10 +59,10 @@ REMAINING_SERVICES=$(echo "$ALL_SERVICES" | grep -vxF -e "$ETHERNET" -e "$WIFI")
 # Reorder services: Ethernet first, Wi-Fi second, then the rest
 NEW_SERVICE_ORDER=("$ETHERNET" "$WIFI")
 while IFS= read -r service; do
-  NEW_SERVICE_ORDER+=("$service")
+  [[ -n "$service" ]] && NEW_SERVICE_ORDER+=("$service")
 done <<< "$REMAINING_SERVICES"
 
-# Apply new order (fully quoted)
+# Apply new order (must quote each service)
 echo "Setting network service priority: ${NEW_SERVICE_ORDER[*]}"
 sudo networksetup -ordernetworkservices "${NEW_SERVICE_ORDER[@]}"
 
