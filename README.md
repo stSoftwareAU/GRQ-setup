@@ -17,6 +17,16 @@ Run the primary setup script with your node number:
 ```bash
 ./setup.sh 21
 ```
+## 🛠 Manual Tasks (one-time setup)
+
+After running setup.sh, you must manually enable SSH (Remote Login):
+
+To enable SSH manually:
+Open System Settings → General → Sharing.
+Enable Remote Login.
+If prompted, allow access for "All Users" (or restrict it to the users you prefer).
+📣 Note: On macOS Ventura/Sonoma and later, enabling Remote Login requires Full Disk Access privileges for Terminal (this is Apple's security feature). This manual step ensures that SSH is enabled correctly.
+
 ![image](https://github.com/user-attachments/assets/d6b039fc-2926-4999-bfa1-e9c7e67b60e8)
 
 ![image](https://github.com/user-attachments/assets/7c7d3348-fe7b-4e77-b1be-6fb2d1729b3d)
