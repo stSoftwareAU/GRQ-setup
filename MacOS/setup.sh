@@ -104,7 +104,7 @@ create_user_setup_script() {
 
   sudo tee /Users/$USERNAME/setup.sh > /dev/null <<EOF
 #!/bin/bash
-set -ex
+set -e
 
 USERNAME=\$(whoami)
 NODE_NUMBER=${NODE_NUMBER}
