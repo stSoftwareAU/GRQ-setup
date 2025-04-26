@@ -10,6 +10,8 @@
     </array>
     <key>RunAtLoad</key>
     <true/>
+    <key>KeepAlive</key>
+    <true/>
     <key>Nice</key>
     <integer>-20</integer> <!-- Highest CPU priority -->
     <key>UserName</key>
