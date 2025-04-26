@@ -82,12 +82,12 @@ create_automated_user "rocket" "High performance Automated User"
 create_automated_user "sloth" "Low priority Automated User"
 
 # Create LaunchAgents
-mkdir -p /Users/rocket/Library/LaunchAgents
-cp rocket.xml /Users/rocket/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
-chown rocket:staff /Users/rocket/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
+sudo -u rocket mkdir -p /Users/rocket/Library/LaunchAgents
+sudo cp rocket.plist /Users/rocket/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
+sudo chown rocket:staff /Users/rocket/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
 
-mkdir -p /Users/sloth/Library/LaunchAgents
-cp sloth.xml /Users/sloth/Library/LaunchAgents/com.lecklogic.lowprioritytask.plist
+sudo -u sloth mkdir -p /Users/sloth/Library/LaunchAgents
+sudo cp sloth.plist /Users/sloth/Library/LaunchAgents/com.lecklogic.lowprioritytask.plist
 chown sloth:staff /Users/sloth/Library/LaunchAgents/com.lecklogic.lowprioritytask.plist
 
 # Generate per-user setup scripts
