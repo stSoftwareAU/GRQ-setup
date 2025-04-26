@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
@@ -8,11 +8,17 @@
     <array>
         <string>/Users/sloth/src/GRQ/sloth.sh</string>
     </array>
-    <key>StartInterval</key>
-    <integer>600</integer> <!-- 10 minutes -->
     <key>RunAtLoad</key>
     <true/>
     <key>Nice</key>
-    <integer>20</integer> <!-- 20 = lowest possible priority -->
+    <integer>20</integer> <!-- Lowest CPU priority -->
+    <key>UserName</key>
+    <string>sloth</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/sloth</string>
+    <key>StandardOutPath</key>
+    <string>/Users/sloth/logs/sloth.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/sloth/logs/sloth.err.log</string>
 </dict>
 </plist>
