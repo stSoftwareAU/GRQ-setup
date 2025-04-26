@@ -87,6 +87,7 @@ echo "Installing Rocket Daemon"
 sudo cp rocket-daemon.plist /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist
 sudo chown root:wheel /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist
 sudo chmod 644 /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist
+sudo launchctl bootout system /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist
 
 # Install and bootstrap Sloth Daemon
@@ -94,6 +95,7 @@ echo "Installing Sloth Daemon"
 sudo cp sloth-daemon.plist /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
 sudo chown root:wheel /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
 sudo chmod 644 /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
+sudo launchctl bootout system /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
 
 # Create per-user setup scripts for SSH key generation
