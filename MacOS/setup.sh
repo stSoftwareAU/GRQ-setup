@@ -120,6 +120,9 @@ fi
 
 # Push SSH key to admin
 ssh-copy-id -f nigel@10.0.0.11
+
+  git config --global user.email "\${USERNAME}-\${NODE_NUMBER}@lecklogic.com"
+  git config --global user.name "\${USERNAME} \${NODE_NUMBER}"
 EOF
 
   sudo chmod +x /Users/$USERNAME/setup.sh
