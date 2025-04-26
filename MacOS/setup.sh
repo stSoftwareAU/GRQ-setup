@@ -118,6 +118,9 @@ fi
 
 # Push SSH key to admin
 ssh-copy-id -f nigel@10.0.0.11
+echo "verify host"
+ssh nigel@10.0.0.11 hostname
+ssh nigel@10.0.0.89 hostname
 
 git config --global user.email "\${USERNAME}-\${NODE_NUMBER}@lecklogic.com"
 git config --global user.name "\${USERNAME} \${NODE_NUMBER}"
