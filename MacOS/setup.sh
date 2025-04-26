@@ -95,7 +95,6 @@ sudo pmset repeat restart M "${REBOOT_HOUR}:0${RAND_MINUTE}:00"
 create_automated_user() {
   local USERNAME=$1
   local FULLNAME=$2
-  local PICTURE_NAME=$3
   
   if ! id -u "$USERNAME" &>/dev/null; then
     PASSWORD=$(openssl rand -base64 20)
@@ -105,24 +104,14 @@ create_automated_user() {
   else
     echo "User $USERNAME already exists."
   fi
-
-  # Set custom picture if available
-  LOCAL_PICTURE="${BASE_DIR}/${PICTURE_NAME}.png"
-  if [[ -f "$LOCAL_PICTURE" ]]; then
-    echo "Setting profile picture for $USERNAME from $LOCAL_PICTURE"
-    sudo dscl . delete "/Users/$USERNAME" jpegphoto || true
-    sudo dscl . create "/Users/$USERNAME" Picture "$LOCAL_PICTURE"
-  else
-    echo "Picture $LOCAL_PICTURE not found, skipping profile picture for $USERNAME"
-  fi
 }
 
 # Create automated users Rocket 🚀 & Sloth 🦥
-create_automated_user "rocket" "High performance Automated User" "Rocket"
-create_automated_user "sloth" "Low priority Automated User" "Sloth"
+create_automated_user "rocket" "High performance Automated User"
+create_automated_user "sloth" "Low priority Automated User"
 
 # High-priority task setup (LaunchAgent)
 mkdir -p ~/Library/LaunchAgents
 cp plist.xml ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
-sed -i '' "s|USERNAME|grq|g" ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
+sed -i '' "s|USERNAME|rocket|g" ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
 launchctl load ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
