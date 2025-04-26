@@ -114,9 +114,9 @@ ssh-copy-id nigel@10.0.0.11
 
 # LaunchAgent load
 if [[ "$ROLE" == "high" ]]; then
-  launchctl bootstrap gui/\$(id -u) "\$HOME/Library/LaunchAgents/com.lecklogic.highprioritytask.plist"
+  launchctl bootstrap user/\$(id -u) "\$HOME/Library/LaunchAgents/com.lecklogic.highprioritytask.plist"
 elif [[ "$ROLE" == "low" ]]; then
-  launchctl bootstrap gui/\$(id -u) "\$HOME/Library/LaunchAgents/com.lecklogic.lowprioritytask.plist"
+  launchctl bootstrap user/\$(id -u) "\$HOME/Library/LaunchAgents/com.lecklogic.lowprioritytask.plist"
 fi
 
 EOF
