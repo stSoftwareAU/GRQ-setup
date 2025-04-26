@@ -88,7 +88,7 @@ sudo chown rocket:staff /Users/rocket/Library/LaunchAgents/com.lecklogic.highpri
 
 sudo -u sloth mkdir -p /Users/sloth/Library/LaunchAgents
 sudo cp sloth.plist /Users/sloth/Library/LaunchAgents/com.lecklogic.lowprioritytask.plist
-chown sloth:staff /Users/sloth/Library/LaunchAgents/com.lecklogic.lowprioritytask.plist
+sudo chown sloth:staff /Users/sloth/Library/LaunchAgents/com.lecklogic.lowprioritytask.plist
 
 # Generate per-user setup scripts
 create_user_setup_script() {
