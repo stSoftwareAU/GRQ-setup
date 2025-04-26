@@ -79,6 +79,8 @@ create_automated_user() {
   else
     echo "User $USERNAME already exists."
   fi
+
+  sudo -u $USERNAME mkdir -p /Users/$USERNAME/logs
 }
 
 create_automated_user "rocket" "High performance Automated User"
