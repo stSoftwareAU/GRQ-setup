@@ -52,7 +52,7 @@ sudo networksetup -setdnsservers "$ETHERNET" 8.8.8.8 8.8.4.4
 
 # Set Ethernet priority over Wi-Fi (must quote properly)
 echo "Setting network service priority: Ethernet ($ETHERNET) over Wi-Fi ($WIFI)"
-sudo networksetup -ordernetworkservices "$ETHERNET" "$WIFI"
+sudo networksetup -ordernetworkservices "\"$ETHERNET\"" "\"$WIFI\""
 
 # Restart automatically after freeze/power failure
 sudo systemsetup -setrestartfreeze on
