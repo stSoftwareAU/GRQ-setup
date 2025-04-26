@@ -112,6 +112,5 @@ create_automated_user "sloth" "Low priority Automated User"
 
 # High-priority task setup (LaunchAgent)
 mkdir -p ~/Library/LaunchAgents
-cp plist.xml ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
-sed -i '' "s|USERNAME|rocket|g" ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
+cp rocket.xml ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
 launchctl load ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
