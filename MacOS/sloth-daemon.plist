@@ -1,24 +1,24 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.lecklogic.highprioritytask</string>
+    <string>com.lecklogic.lowprioritytask</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/rocket/GRQ/rocket.sh</string>
+        <string>/Users/sloth/GRQ/sloth.sh</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>Nice</key>
-    <integer>-20</integer>
+    <integer>20</integer>
     <key>UserName</key>
-    <string>rocket</string>
+    <string>sloth</string>
     <key>WorkingDirectory</key>
-    <string>/Users/rocket</string>
+    <string>/Users/sloth</string>
     <key>StandardOutPath</key>
-    <string>/Users/rocket/logs/rocket.out.log</string>
+    <string>/Users/sloth/logs/sloth.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/rocket/logs/rocket.err.log</string>
+    <string>/Users/sloth/logs/sloth.err.log</string>
 </dict>
 </plist>
