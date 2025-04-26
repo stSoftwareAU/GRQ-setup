@@ -6,7 +6,7 @@
     <string>com.lecklogic.lowprioritytask</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/sloth/src/GRQ/sloth.sh</string>
+        <string>/Users/sloth/GRQ/sloth.sh</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
