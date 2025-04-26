@@ -1,0 +1,24 @@
+{
+    "cSpell.words": [
+        "autorestart",
+        "disksleep",
+        "displaysleep",
+        "dscacheutil",
+        "flushcache",
+        "highprioritytask",
+        "listnetworkserviceorder",
+        "lowpowermode",
+        "networksetup",
+        "ordernetworkservices",
+        "pmset",
+        "powernap",
+        "screensharing",
+        "setdnsservers",
+        "setmanual",
+        "setremotelogin",
+        "setrestartfreeze",
+        "settimezone",
+        "softwareupdate",
+        "systemsetup"
+    ]
+}
