@@ -21,12 +21,14 @@ echo "Setting timezone to Australia/Sydney"
 sudo ln -sf /usr/share/zoneinfo/Australia/Sydney /etc/localtime
 
 # Set hostname
+echo "Setting hostname to ${HOSTNAME}"
 sudo scutil --set HostName "${HOSTNAME}"
 sudo scutil --set LocalHostName "${HOSTNAME}"
 sudo scutil --set ComputerName "${HOSTNAME}"
 dscacheutil -flushcache
 
 # Setup static IP on Ethernet
+echo "Configuring network"
 ETHERNET=$(networksetup -listallnetworkservices | grep -Ei 'ethernet|lan' | head -n1 | sed 's/^\*//;s/^ //')
 WIFI=$(networksetup -listallnetworkservices | grep -Ei 'wi-?fi|airport' | head -n1 | sed 's/^\*//;s/^ //')
 
@@ -50,29 +52,30 @@ done <<< "$REMAINING_SERVICES"
 
 sudo networksetup -ordernetworkservices "${NEW_SERVICE_ORDER[@]}"
 
-# Auto-restart
+# Auto-restart on freeze
 sudo systemsetup -setrestartfreeze on
 sudo pmset -a autorestart 1
 
-# Auto-updates
+# Enable automatic updates
+echo "Enabling automatic updates"
 sudo softwareupdate --schedule on
 sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool TRUE
 sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool TRUE
 sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool TRUE
 sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdateRestartRequired -bool TRUE
 
-# Disable low power modes
+# Disable sleep and low power modes
 sudo pmset -a sleep 0 disksleep 0 displaysleep 0 powernap 0 lowpowermode 0
 
-# Create users rocket and sloth
+# Create automated users rocket and sloth
 create_automated_user() {
   local USERNAME=$1
   local FULLNAME=$2
 
   if ! id -u "$USERNAME" &>/dev/null; then
+    echo "Creating user $USERNAME"
     sudo sysadminctl -addUser "$USERNAME" -fullName "$FULLNAME" -password "$AUTOMATED_PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
     sudo createhomedir -c -u "$USERNAME"
-    echo "User $USERNAME created."
   else
     echo "User $USERNAME already exists."
   fi
@@ -81,22 +84,23 @@ create_automated_user() {
 create_automated_user "rocket" "High performance Automated User"
 create_automated_user "sloth" "Low priority Automated User"
 
-# Install rocket daemon
+# Install and bootstrap Rocket Daemon
+echo "Installing Rocket Daemon"
 sudo cp rocket-daemon.plist /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist
 sudo chown root:wheel /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist
 sudo chmod 644 /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist
 
-# Install sloth daemon
+# Install and bootstrap Sloth Daemon
+echo "Installing Sloth Daemon"
 sudo cp sloth-daemon.plist /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
 sudo chown root:wheel /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
 sudo chmod 644 /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
 
-# Generate per-user setup scripts
+# Create per-user setup scripts for SSH key generation
 create_user_setup_script() {
   local USERNAME=$1
-  local ROLE=$2  # high or low
 
   sudo tee /Users/$USERNAME/setup.sh > /dev/null <<EOF
 #!/bin/bash
@@ -105,7 +109,7 @@ set -ex
 USERNAME=\$(whoami)
 NODE_NUMBER=${NODE_NUMBER}
 
-# SSH key setup
+# Generate SSH key if missing
 if [[ ! -f "\$HOME/.ssh/id_ed25519" ]]; then
   echo "Generating new SSH key for \$USERNAME..."
   mkdir -p "\$HOME/.ssh"
@@ -113,15 +117,14 @@ if [[ ! -f "\$HOME/.ssh/id_ed25519" ]]; then
 fi
 
 # Push SSH key to admin
-ssh-copy-id nigel@10.0.0.11
-
+ssh-copy-id -f nigel@10.0.0.11
 EOF
 
   sudo chmod +x /Users/$USERNAME/setup.sh
   sudo chown $USERNAME:staff /Users/$USERNAME/setup.sh
 }
 
-create_user_setup_script "rocket" "high"
-create_user_setup_script "sloth" "low"
+create_user_setup_script "rocket"
+create_user_setup_script "sloth"
 
-echo "🚀 Setup complete. Now login as 'rocket' and 'sloth' to complete their setups!"
+echo "🚀 Setup complete. Now login as 'rocket' and 'sloth' and run '~/setup.sh' to create their SSH keys!"
