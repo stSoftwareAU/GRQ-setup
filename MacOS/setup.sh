@@ -62,8 +62,38 @@ sudo pmset -a sleep 0 disksleep 0 displaysleep 0 powernap 0 lowpowermode 0
 # Schedule weekly forced reboot on Monday at 3:0X AM (randomized minute)
 sudo pmset repeat restart M "${REBOOT_HOUR}:0${RAND_MINUTE}:00"
 
+# Automated user creation function
+create_automated_user() {
+  local USERNAME=$1
+  local FULLNAME=$2
+  local EMOJI=$3
+  
+  # Check if user exists
+  if ! id -u "$USERNAME" &>/dev/null; then
+    PASSWORD=$(openssl rand -base64 20)
+    sudo sysadminctl -addUser "$USERNAME" -fullName "$FULLNAME" -password "$PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
+    sudo createhomedir -c -u "$USERNAME"
+    echo "User $USERNAME created with secure random password."
+  else
+    echo "User $USERNAME already exists."
+  fi
+
+  # Set emoji user picture (using Apple's default emoji set)
+  EMOJI_PATH="/System/Library/User Template/English.lproj/Pictures/${EMOJI}.png"
+  if [[ -f "$EMOJI_PATH" ]]; then
+    sudo dscl . delete "/Users/$USERNAME" jpegphoto
+    sudo dscl . create "/Users/$USERNAME" Picture "$EMOJI_PATH"
+  else
+    echo "Emoji picture not found at $EMOJI_PATH"
+  fi
+}
+
+# Create automated users GRQ 🚀 & Sloth 🦥
+create_automated_user "grq" "GRQ Automated User" "Rocket"
+create_automated_user "sloth" "Sloth Automated User" "Sloth"
+
 # High-priority task setup (LaunchAgent)
 mkdir -p ~/Library/LaunchAgents
 cp plist.xml ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
-sed -i '' "s|USERNAME|$CURRENT_USER|g" ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
+sed -i '' "s|USERNAME|grq|g" ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
 launchctl load ~/Library/LaunchAgents/com.lecklogic.highprioritytask.plist
