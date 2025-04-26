@@ -31,10 +31,16 @@ dscacheutil -flushcache
 sudo networksetup -setmanual "Ethernet" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
 sudo networksetup -setdnsservers "Ethernet" 8.8.8.8 8.8.4.4
 
+# Detect Ethernet and Wi-Fi interfaces dynamically
+ETHERNET=$(networksetup -listallnetworkservices | grep -E 'Ethernet|LAN|en[0-9]' | head -n1)
+WIFI=$(networksetup -listallnetworkservices | grep -E 'Wi-Fi|AirPort' | head -n1)
+
+if [[ -z "$ETHERNET" || -z "$WIFI" ]]; then
+  echo "Error detecting network interfaces. Check manually with 'networksetup -listallnetworkservices'"
+  exit 1
+fi
 
 # Set Ethernet priority over Wi-Fi
-ETHERNET=$(networksetup -listnetworkserviceorder | grep "Hardware Port: Ethernet" | awk -F'\\) ' '{print $2}' | sed 's/,.*//')
-WIFI=$(networksetup -listnetworkserviceorder | grep "Hardware Port: Wi-Fi" | awk -F'\\) ' '{print $2}' | sed 's/,.*//')
 sudo networksetup -ordernetworkservices "$ETHERNET" "$WIFI"
 
 # Restart automatically after freeze/power failure
