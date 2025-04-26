@@ -16,10 +16,6 @@ HOSTNAME="GRQ-${NODE_NUMBER}"
 IP_ADDRESS="10.0.0.${NODE_NUMBER}"
 CURRENT_USER=$(whoami)
 
-# Set timezone
-echo "Setting timezone to Australia/Sydney"
-sudo ln -sf /usr/share/zoneinfo/Australia/Sydney /etc/localtime
-
 # Set hostname
 echo "Setting hostname to ${HOSTNAME}"
 sudo scutil --set HostName "${HOSTNAME}"
