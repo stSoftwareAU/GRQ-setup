@@ -117,9 +117,9 @@ create_automated_user() {
   fi
 }
 
-# Create automated users GRQ 🚀 & Sloth 🦥
-create_automated_user "grq" "GRQ Automated User" "Rocket"
-create_automated_user "sloth" "Sloth Automated User" "Sloth"
+# Create automated users Rocket 🚀 & Sloth 🦥
+create_automated_user "rocket" "High performance Automated User" "Rocket"
+create_automated_user "sloth" "Low priority Automated User" "Sloth"
 
 # High-priority task setup (LaunchAgent)
 mkdir -p ~/Library/LaunchAgents
