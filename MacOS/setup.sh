@@ -144,8 +144,6 @@ EOF
 create_user_setup_script "rocket"
 create_user_setup_script "sloth"
 
-=== Final hardening steps for unattended use ===
-
 # 1. Enable Remote Management (Screen Sharing)
 echo "Enabling Screen Sharing..."
 sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
