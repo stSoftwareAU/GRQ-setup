@@ -39,4 +39,17 @@ If prompted, allow access for "All Users" (or restrict it to the users you prefe
 
 ![image](https://github.com/user-attachments/assets/8bf357ca-841f-46bd-a4bd-877b3d4c526b)
 
-![image](https://github.com/user-attachments/assets/ce95f587-5478-4089-b919-f95006f2fe12)
+## Remote Management & Apple ID Precautions
+
+Each Mac is set up using your Apple ID but does not retain any personal services like Messages, iCloud Drive, or FaceTime. These should be disabled manually after initial setup:
+
+1. Open **System Settings > Apple ID**.
+2. Sign out of Messages, FaceTime, and iCloud Drive.
+3. Disable Handoff, Continuity, and Apple Watch unlock.
+
+### Remote Access
+
+- **Screen Sharing** is enabled and available through your Apple ID or local network.
+- If a password reset is needed, machines may be wiped and re-setup using `setup.sh`.
+
+These systems are designed to be **self-healing and ephemeral** — only syncing training data hourly.

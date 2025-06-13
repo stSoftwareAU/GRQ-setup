@@ -144,4 +144,34 @@ EOF
 create_user_setup_script "rocket"
 create_user_setup_script "sloth"
 
+=== Final hardening steps for unattended use ===
+
+# 1. Enable Remote Management (Screen Sharing)
+echo "Enabling Screen Sharing..."
+sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
+sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+  -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes \
+  -restart -agent -privs -all
+
+# 2. Prevent iCloud syncing and Messages integration (partial CLI automation)
+echo "Limiting Apple ID integrations — Please ensure the following are OFF:"
+echo "- Messages"
+echo "- FaceTime"
+echo "- iCloud Drive sync"
+echo "- Handoff & Continuity"
+echo "Run System Preferences manually and disable where required."
+
+# 3. Suppress system crash dialogs
+sudo defaults write /Library/Preferences/com.apple.CrashReporter DialogType none
+
+# 4. Disable password hints
+sudo defaults write /Library/Preferences/com.apple.loginwindow RetriesUntilHint -int 0
+
+# 5. Disable automatic Time Machine prompts
+sudo defaults write com.apple.TimeMachine DoNotOfferNewDisksForBackup -bool true
+
+# 6. Mark system as ephemeral/safe to wipe
+echo "🧼 Note: This system is considered safe-to-wipe. All AI training data syncs hourly to GitHub."
+
 echo "🚀 Setup complete. Now login as 'rocket' and 'sloth' and run '~/setup.sh' to create their SSH keys!"
+# 
