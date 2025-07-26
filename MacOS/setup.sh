@@ -25,13 +25,19 @@ dscacheutil -flushcache
 
 # Setup static IP on Ethernet
 echo "Configuring network"
-ETHERNET=$(networksetup -listallnetworkservices | grep -Ei 'ethernet|lan' | head -n1 | sed 's/^\*//;s/^ //')
-WIFI=$(networksetup -listallnetworkservices | grep -Ei 'wi-?fi|airport' | head -n1 | sed 's/^\*//;s/^ //')
+ETHERNET=$(networksetup -listallnetworkservices | grep -Ei 'ethernet|lan' | sed 's/^\*//;s/^ //' | head -n1 || true)
+WIFI=$(networksetup -listallnetworkservices | grep -Ei 'wi[- ]?fi|airport' | sed 's/^\*//;s/^ //' | head -n1 || true)
 
-if [[ -z "$ETHERNET" || -z "$WIFI" ]]; then
-  echo "Error detecting interfaces. Ethernet='$ETHERNET', Wi-Fi='$WIFI'"
-  networksetup -listallnetworkservices
-  exit 1
+if [[ -z "$ETHERNET" ]]; then
+  echo "⚠️ Ethernet interface not found — will skip static IP config."
+else
+  echo "🔧 Configuring static IP on $ETHERNET to ${IP_ADDRESS}"
+  sudo networksetup -setmanual "$ETHERNET" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
+  sudo networksetup -setdnsservers "$ETHERNET" 8.8.8.8 8.8.4.4
+fi
+
+if [[ -z "$WIFI" ]]; then
+  echo "⚠️ Wi-Fi interface not found — continuing without Wi-Fi prioritization."
 fi
 
 sudo networksetup -setmanual "$ETHERNET" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
