@@ -15,7 +15,7 @@
 Run the primary setup script with your node number:
 
 ```bash
-./setup.sh 21
+~/GRQ-stepup/MacOS/setup.sh 21 
 ```
 ## 🛠 Manual Tasks (one-time setup)
 
