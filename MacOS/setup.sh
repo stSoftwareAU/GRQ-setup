@@ -40,19 +40,24 @@ if [[ -z "$WIFI" ]]; then
   echo "⚠️ Wi-Fi interface not found — continuing without Wi-Fi prioritization."
 fi
 
-sudo networksetup -setmanual "$ETHERNET" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
-sudo networksetup -setdnsservers "$ETHERNET" 8.8.8.8 8.8.4.4
-
 # Set Ethernet priority over Wi-Fi
 ALL_SERVICES=$(networksetup -listallnetworkservices | sed 's/^\*//;s/^ //' | grep -v '^An asterisk')
 REMAINING_SERVICES=$(echo "$ALL_SERVICES" | grep -vxF -e "$ETHERNET" -e "$WIFI")
 
-NEW_SERVICE_ORDER=("$ETHERNET" "$WIFI")
+# Build service order array, only including found interfaces
+NEW_SERVICE_ORDER=()
+[[ -n "$ETHERNET" ]] && NEW_SERVICE_ORDER+=("$ETHERNET")
+[[ -n "$WIFI" ]] && NEW_SERVICE_ORDER+=("$WIFI")
 while IFS= read -r service; do
   [[ -n "$service" ]] && NEW_SERVICE_ORDER+=("$service")
 done <<< "$REMAINING_SERVICES"
 
-sudo networksetup -ordernetworkservices "${NEW_SERVICE_ORDER[@]}"
+# Only reorder if we have services to order
+if [[ ${#NEW_SERVICE_ORDER[@]} -gt 0 ]]; then
+  sudo networksetup -ordernetworkservices "${NEW_SERVICE_ORDER[@]}"
+else
+  echo "⚠️ No network services found to reorder."
+fi
 
 # Auto-restart on freeze
 sudo systemsetup -setrestartfreeze on
