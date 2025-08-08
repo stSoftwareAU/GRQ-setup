@@ -23,31 +23,49 @@ sudo scutil --set LocalHostName "${HOSTNAME}"
 sudo scutil --set ComputerName "${HOSTNAME}"
 dscacheutil -flushcache
 
-# Setup static IP on Ethernet
+# Setup network configuration - static IP on one interface, DHCP on the other
 echo "Configuring network"
 ETHERNET=$(networksetup -listallnetworkservices | grep -Ei 'ethernet|lan' | sed 's/^\*//;s/^ //' | head -n1 || true)
 WIFI=$(networksetup -listallnetworkservices | grep -Ei 'wi[- ]?fi|airport' | sed 's/^\*//;s/^ //' | head -n1 || true)
 
-if [[ -z "$ETHERNET" ]]; then
-  echo "⚠️ Ethernet interface not found — will skip static IP config."
+# Determine which interface to use for static IP (prefer Ethernet, fallback to Wi-Fi for MacBook Airs)
+STATIC_INTERFACE=""
+DHCP_INTERFACE=""
+
+if [[ -n "$ETHERNET" ]]; then
+  STATIC_INTERFACE="$ETHERNET"
+  DHCP_INTERFACE="$WIFI"
+  echo "🔧 Using Ethernet ($ETHERNET) for static IP, Wi-Fi ($WIFI) for DHCP"
+elif [[ -n "$WIFI" ]]; then
+  STATIC_INTERFACE="$WIFI"
+  DHCP_INTERFACE=""
+  echo "🔧 Using Wi-Fi ($WIFI) for static IP (MacBook Air or no Ethernet found)"
 else
-  echo "🔧 Configuring static IP on $ETHERNET to ${IP_ADDRESS}"
-  sudo networksetup -setmanual "$ETHERNET" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
-  sudo networksetup -setdnsservers "$ETHERNET" 8.8.8.8 8.8.4.4
+  echo "⚠️ No network interfaces found — skipping network configuration."
 fi
 
-if [[ -z "$WIFI" ]]; then
-  echo "⚠️ Wi-Fi interface not found — continuing without Wi-Fi prioritization."
+# Configure static IP on the chosen interface
+if [[ -n "$STATIC_INTERFACE" ]]; then
+  echo "🔧 Configuring static IP on $STATIC_INTERFACE to ${IP_ADDRESS}"
+  sudo networksetup -setmanual "$STATIC_INTERFACE" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
+  sudo networksetup -setdnsservers "$STATIC_INTERFACE" 8.8.8.8 8.8.4.4
 fi
 
-# Set Ethernet priority over Wi-Fi
+# Configure DHCP on the other interface
+if [[ -n "$DHCP_INTERFACE" ]]; then
+  echo "🔧 Configuring DHCP on $DHCP_INTERFACE"
+  sudo networksetup -setdhcp "$DHCP_INTERFACE"
+  sudo networksetup -setdnsservers "$DHCP_INTERFACE" empty
+fi
+
+# Set interface priority (static IP interface first)
 ALL_SERVICES=$(networksetup -listallnetworkservices | sed 's/^\*//;s/^ //' | grep -v '^An asterisk')
 REMAINING_SERVICES=$(echo "$ALL_SERVICES" | grep -vxF -e "$ETHERNET" -e "$WIFI")
 
-# Build service order array, only including found interfaces
+# Build service order array, prioritizing the static IP interface
 NEW_SERVICE_ORDER=()
-[[ -n "$ETHERNET" ]] && NEW_SERVICE_ORDER+=("$ETHERNET")
-[[ -n "$WIFI" ]] && NEW_SERVICE_ORDER+=("$WIFI")
+[[ -n "$STATIC_INTERFACE" ]] && NEW_SERVICE_ORDER+=("$STATIC_INTERFACE")
+[[ -n "$DHCP_INTERFACE" ]] && NEW_SERVICE_ORDER+=("$DHCP_INTERFACE")
 while IFS= read -r service; do
   [[ -n "$service" ]] && NEW_SERVICE_ORDER+=("$service")
 done <<< "$REMAINING_SERVICES"
@@ -73,6 +91,25 @@ sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdateRestartReq
 
 # Disable sleep and low power modes
 sudo pmset -a sleep 0 disksleep 0 displaysleep 0 powernap 0 lowpowermode 0
+
+# Configure core dumps - limit to one core dump to save disk space
+echo "Configuring core dumps"
+sudo sysctl -w kern.corefile=/cores/core.%P
+sudo sysctl -w kern.coredump=1
+sudo sysctl -w kern.corefile_pid=1
+sudo sysctl -w kern.corefile_uid=0
+sudo sysctl -w kern.corefile_gid=0
+sudo sysctl -w kern.corefile_mode=600
+
+# Create cores directory if it doesn't exist
+sudo mkdir -p /cores
+sudo chmod 755 /cores
+
+# Clean up old core dumps (keep only the most recent one)
+if [[ -d /cores ]]; then
+  echo "Cleaning up old core dumps"
+  sudo find /cores -name "core.*" -type f -delete 2>/dev/null || true
+fi
 
 # Create automated users rocket and sloth
 create_automated_user() {
