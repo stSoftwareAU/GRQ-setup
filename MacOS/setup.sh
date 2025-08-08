@@ -96,10 +96,6 @@ sudo pmset -a sleep 0 disksleep 0 displaysleep 0 powernap 0 lowpowermode 0
 echo "Configuring core dumps"
 sudo sysctl -w kern.corefile=/cores/core.%P
 sudo sysctl -w kern.coredump=1
-sudo sysctl -w kern.corefile_pid=1
-sudo sysctl -w kern.corefile_uid=0
-sudo sysctl -w kern.corefile_gid=0
-sudo sysctl -w kern.corefile_mode=600
 
 # Create cores directory if it doesn't exist
 sudo mkdir -p /cores
