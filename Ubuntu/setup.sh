@@ -172,13 +172,16 @@ create_automated_user() {
     echo "Creating user $USERNAME"
     sudo useradd -m -s /bin/bash -c "$FULLNAME" "$USERNAME"
     echo "$USERNAME:$AUTOMATED_PASSWORD" | sudo chpasswd
-    sudo usermod -aG sudo "$USERNAME"
-    echo "User $USERNAME created successfully"
+    # Remove from sudo group if they were added previously
+    sudo deluser "$USERNAME" sudo 2>/dev/null || true
+    echo "User $USERNAME created successfully (no sudo access)"
   else
     echo "User $USERNAME already exists"
     # Update password in case it changed
     echo "$USERNAME:$AUTOMATED_PASSWORD" | sudo chpasswd
-    echo "Password updated for $USERNAME"
+    # Ensure they don't have sudo access
+    sudo deluser "$USERNAME" sudo 2>/dev/null || true
+    echo "Password updated for $USERNAME (sudo access removed)"
   fi
 
   # Create logs directory (idempotent)
@@ -310,6 +313,25 @@ set -e
 USERNAME=\$(whoami)
 NODE_NUMBER=${NODE_NUMBER}
 
+# Upgrade tools first
+echo "Upgrading Deno and Rust tools..."
+if [[ -f "\$HOME/upgrade_tools.sh" ]]; then
+  bash "\$HOME/upgrade_tools.sh"
+else
+  echo "Upgrade script not found, installing tools manually..."
+  # Install Deno if missing
+  if ! command -v deno &> /dev/null; then
+    curl -fsSL https://deno.land/install.sh | sh
+    export PATH="\$HOME/.deno/bin:\$PATH"
+  fi
+  
+  # Install Rust if missing
+  if ! command -v rustc &> /dev/null; then
+    curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    export PATH="\$HOME/.cargo/bin:\$PATH"
+  fi
+fi
+
 # Generate SSH key if missing
 if [[ ! -f "\$HOME/.ssh/id_ed25519" ]]; then
   echo "Generating new SSH key for \$USERNAME..."
@@ -395,15 +417,97 @@ if [[ -n "$(which apt-get)" ]]; then
 
   sudo apt update
   sudo apt upgrade -y
-  # Install only essential packages for ML training
-  sudo apt install -y git openssh-server cpufrequtils
-  # Remove unnecessary packages that might be installed
-  sudo apt remove --purge -y jq curl zip 2>/dev/null || true
+  # Install essential packages for ML training
+  sudo apt install -y git openssh-server cpufrequtils jq curl
+  # Remove any system-level Deno and Rust installations
+  sudo apt remove --purge -y rustc cargo rustup 2>/dev/null || true
+  sudo rm -rf /usr/local/bin/deno 2>/dev/null || true
+  sudo rm -rf /root/.deno 2>/dev/null || true
+  sudo rm -rf /root/.cargo 2>/dev/null || true
+  sudo rm -rf /root/.rustup 2>/dev/null || true
+  echo "Removed any system-level Deno and Rust installations"
   sudo apt autoremove --purge -y
 fi
 
-# Skip Deno installation - not needed for pure ML training
-echo "Skipping Deno installation (not needed for ML training)"
+# Install Deno and Rust for each user (user-level installation)
+echo "Installing Deno and Rust for each user..."
+
+# Function to install tools for a specific user
+install_user_tools() {
+  local USERNAME=$1
+  local USER_HOME="/home/$USERNAME"
+  
+  echo "Installing tools for $USERNAME user..."
+  
+  # Install Deno for this user
+  if [[ ! -d "$USER_HOME/.deno/bin" ]]; then
+    sudo -u $USERNAME bash -c 'curl -fsSL https://deno.land/install.sh | sh'
+    echo "Deno installed for $USERNAME user"
+  else
+    echo "Deno already installed for $USERNAME user"
+  fi
+  
+  # Install Rust for this user
+  if ! sudo -u $USERNAME bash -c 'command -v rustc &> /dev/null'; then
+    sudo -u $USERNAME bash -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
+    echo "Rust installed for $USERNAME user"
+  else
+    echo "Rust already installed for $USERNAME user"
+  fi
+  
+  # Configure PATH for this user
+  local BASHRC="$USER_HOME/.bashrc"
+  
+  # Add Deno and Rust to PATH if not already present
+  if ! sudo -u $USERNAME grep -q "export PATH.*\.deno/bin" "$BASHRC" 2>/dev/null; then
+    echo 'export PATH="$HOME/.deno/bin:$PATH"' | sudo -u $USERNAME tee -a "$BASHRC" > /dev/null
+  fi
+  
+  if ! sudo -u $USERNAME grep -q "export PATH.*\.cargo/bin" "$BASHRC" 2>/dev/null; then
+    echo 'export PATH="$HOME/.cargo/bin:$PATH"' | sudo -u $USERNAME tee -a "$BASHRC" > /dev/null
+  fi
+  
+  # Create upgrade script for this user
+  sudo -u $USERNAME tee "$USER_HOME/upgrade_tools.sh" > /dev/null <<EOF
+#!/bin/bash
+# Auto-upgrade script for $USERNAME user
+
+echo "Upgrading tools for $USERNAME..."
+
+# Upgrade Deno
+if command -v deno &> /dev/null; then
+  echo "Upgrading Deno..."
+  deno upgrade
+else
+  echo "Installing Deno..."
+  curl -fsSL https://deno.land/install.sh | sh
+fi
+
+# Upgrade Rust
+if command -v rustup &> /dev/null; then
+  echo "Upgrading Rust..."
+  rustup update
+else
+  echo "Installing Rust..."
+  curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+fi
+
+echo "Tools upgraded for $USERNAME"
+EOF
+  
+  sudo chmod +x "$USER_HOME/upgrade_tools.sh"
+  sudo chown $USERNAME:$USERNAME "$USER_HOME/upgrade_tools.sh"
+  
+  echo "Tools and upgrade script configured for $USERNAME"
+}
+
+# Install tools for each user
+install_user_tools "rocket"
+install_user_tools "sloth"
+
+if [[ "$CREATE_ELEPHANT" == "true" ]]; then
+  install_user_tools "elephant"
+fi
 
 # Set timezone
 sudo timedatectl set-timezone Australia/Sydney
@@ -419,7 +523,7 @@ create_rocket_crontab() {
   cat > "$CRON_FILE" <<EOF
 SHELL=/bin/bash
 # Rocket user - HIGHEST PRIORITY (unnice) - runs every 5 minutes at :00, :05, :10, etc.
-0,5,10,15,20,25,30,35,40,45,50,55 * * * * mkdir -p ~/logs; ionice -c1 -n0 nice -n-20 ~/GRQ/rocket.sh > ~/logs/rocket.log 2>&1
+0,5,10,15,20,25,30,35,40,45,50,55 * * * * ionice -c1 -n0 nice -n-20 ~/GRQ/rocket.sh > ~/logs/rocket.log 2>&1
 EOF
   
   sudo -u $USERNAME crontab "$CRON_FILE"
@@ -435,7 +539,7 @@ create_sloth_crontab() {
   cat > "$CRON_FILE" <<EOF
 SHELL=/bin/bash
 # Sloth user - LOW PRIORITY (nice) - runs every 5 minutes at :02, :07, :12, etc. (offset by 2 minutes)
-2,7,12,17,22,27,32,37,42,47,52,57 * * * * mkdir -p ~/logs; ionice -c3 -n7 nice -n19 ~/GRQ/sloth.sh > ~/logs/sloth.log 2>&1
+2,7,12,17,22,27,32,37,42,47,52,57 * * * * ionice -c3 -n7 nice -n19 ~/GRQ/sloth.sh > ~/logs/sloth.log 2>&1
 EOF
   
   sudo -u $USERNAME crontab "$CRON_FILE"
@@ -451,7 +555,7 @@ create_elephant_crontab() {
   cat > "$CRON_FILE" <<EOF
 SHELL=/bin/bash
 # Elephant user - LOW PRIORITY (nice) - runs every 5 minutes at :04, :09, :14, etc. (offset by 4 minutes)
-4,9,14,19,24,29,34,39,44,49,54,59 * * * * mkdir -p ~/logs; ionice -c3 -n7 nice -n19 ~/GRQ/elephant.sh > ~/logs/elephant.log 2>&1
+4,9,14,19,24,29,34,39,44,49,54,59 * * * * ionice -c3 -n7 nice -n19 ~/GRQ/elephant.sh > ~/logs/elephant.log 2>&1
 EOF
   
   sudo -u $USERNAME crontab "$CRON_FILE"
