@@ -417,15 +417,32 @@ if [[ -n "$(which apt-get)" ]]; then
 
   sudo apt update
   sudo apt upgrade -y
-  # Install essential packages for ML training
-  sudo apt install -y git openssh-server cpufrequtils jq curl
-  # Remove any system-level Deno and Rust installations
+  # Install only absolutely essential packages for ML training
+  sudo apt install -y git openssh-server cpufrequtils
+  # Remove unnecessary packages that might have been installed
+  echo "Removing unnecessary packages for pure ML training machine..."
   sudo apt remove --purge -y rustc cargo rustup 2>/dev/null || true
+  sudo apt remove --purge -y jq curl 2>/dev/null || true
+  sudo apt remove --purge -y build-essential make gcc g++ 2>/dev/null || true
+  sudo apt remove --purge -y man-db manpages 2>/dev/null || true
+  sudo apt remove --purge -y nano vim-tiny 2>/dev/null || true
+  sudo apt remove --purge -y ubuntu-desktop-minimal ubuntu-desktop xfce4* 2>/dev/null || true
+  sudo apt remove --purge -y deja-dup 2>/dev/null || true
+  sudo apt remove --purge -y snapd 2>/dev/null || true
+  sudo apt remove --purge -y bluetooth 2>/dev/null || true
+  sudo apt remove --purge -y cups 2>/dev/null || true
+  sudo apt remove --purge -y ModemManager 2>/dev/null || true
+  
+  # Remove any system-level Deno and Rust installations
   sudo rm -rf /usr/local/bin/deno 2>/dev/null || true
   sudo rm -rf /root/.deno 2>/dev/null || true
   sudo rm -rf /root/.cargo 2>/dev/null || true
   sudo rm -rf /root/.rustup 2>/dev/null || true
-  echo "Removed any system-level Deno and Rust installations"
+  # Also remove from current user's home directory to ensure user-level only
+  rm -rf ~/.deno 2>/dev/null || true
+  rm -rf ~/.cargo 2>/dev/null || true
+  rm -rf ~/.rustup 2>/dev/null || true
+  echo "Removed unnecessary packages and system-level installations"
   sudo apt autoremove --purge -y
 fi
 
