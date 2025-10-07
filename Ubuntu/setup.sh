@@ -1,6 +1,19 @@
 #!/bin/bash
 set -e
 
+# ASCII Art Header
+cat << 'EOF'
+    ██████╗ ██████╗  ██████╗     ███████╗███████╗████████╗██╗   ██╗██████╗ 
+    ██╔══██╗██╔══██╗██╔═══██╗    ██╔════╝██╔════╝╚══██╔══╝██║   ██║██╔══██╗
+    ██████╔╝██████╔╝██║   ██║    ███████╗█████╗     ██║   ██║   ██║██████╔╝
+    ██╔══██╗██╔══██╗██║   ██║    ╚════██║██╔══╝     ██║   ██║   ██║██╔═══╝ 
+    ██║  ██║██║  ██║╚██████╔╝    ███████║███████╗   ██║   ╚██████╔╝██║     
+    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝     ╚══════╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝     
+                                                                            
+    🚀 ML Training Node Setup - Ubuntu Edition 🚀
+    =============================================
+EOF
+
 BASE_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "${BASE_DIR}"
 
@@ -420,11 +433,10 @@ if [[ -n "$(which apt-get)" ]]; then
   sudo apt update
   sudo apt upgrade -y
   # Install only absolutely essential packages for ML training
-  sudo apt install -y git openssh-server cpufrequtils jq
+  sudo apt install -y git openssh-server cpufrequtils jq curl htop
   # Remove unnecessary packages that might have been installed
   echo "Removing unnecessary packages for pure ML training machine..."
   sudo apt remove --purge -y rustc cargo rustup 2>/dev/null || true
-  sudo apt remove --purge -y curl 2>/dev/null || true
   sudo apt remove --purge -y build-essential make gcc g++ 2>/dev/null || true
   sudo apt remove --purge -y man-db manpages 2>/dev/null || true
   sudo apt remove --purge -y nano vim-tiny 2>/dev/null || true
