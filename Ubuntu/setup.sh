@@ -408,19 +408,66 @@ echo "Skipping Deno installation (not needed for ML training)"
 # Set timezone
 sudo timedatectl set-timezone Australia/Sydney
 
-# Install crontab (idempotent)
-echo "Installing crontab..."
-if [[ -f "crontab.txt" ]]; then
-  # Check if crontab is already installed and matches
-  if crontab -l 2>/dev/null | grep -q "GRQ/run.sh" && [[ "$(crontab -l 2>/dev/null | wc -l)" -eq "$(wc -l < crontab.txt)" ]]; then
-    echo "Crontab already installed and matches"
-  else
-    crontab < crontab.txt
-    echo "Crontab installed/updated"
-  fi
-else
-  echo "Warning: crontab.txt not found, skipping crontab installation"
+# Install user-specific crontabs with priority settings (idempotent)
+echo "Installing user-specific crontabs with priority settings"
+
+# Create rocket user crontab (HIGHEST PRIORITY)
+create_rocket_crontab() {
+  local USERNAME="rocket"
+  local CRON_FILE="/tmp/rocket_crontab"
+  
+  cat > "$CRON_FILE" <<EOF
+SHELL=/bin/bash
+# Rocket user - HIGHEST PRIORITY (unnice) - runs every 5 minutes at :00, :05, :10, etc.
+0,5,10,15,20,25,30,35,40,45,50,55 * * * * mkdir -p ~/logs; ionice -c1 -n0 nice -n-20 ~/GRQ/rocket.sh > ~/logs/rocket.log 2>&1
+EOF
+  
+  sudo -u $USERNAME crontab "$CRON_FILE"
+  rm -f "$CRON_FILE"
+  echo "Rocket crontab installed with highest priority (unnice)"
+}
+
+# Create sloth user crontab (LOW PRIORITY)
+create_sloth_crontab() {
+  local USERNAME="sloth"
+  local CRON_FILE="/tmp/sloth_crontab"
+  
+  cat > "$CRON_FILE" <<EOF
+SHELL=/bin/bash
+# Sloth user - LOW PRIORITY (nice) - runs every 5 minutes at :02, :07, :12, etc. (offset by 2 minutes)
+2,7,12,17,22,27,32,37,42,47,52,57 * * * * mkdir -p ~/logs; ionice -c3 -n7 nice -n19 ~/GRQ/sloth.sh > ~/logs/sloth.log 2>&1
+EOF
+  
+  sudo -u $USERNAME crontab "$CRON_FILE"
+  rm -f "$CRON_FILE"
+  echo "Sloth crontab installed with low priority (nice)"
+}
+
+# Create elephant user crontab (LOW PRIORITY) - only if elephant user exists
+create_elephant_crontab() {
+  local USERNAME="elephant"
+  local CRON_FILE="/tmp/elephant_crontab"
+  
+  cat > "$CRON_FILE" <<EOF
+SHELL=/bin/bash
+# Elephant user - LOW PRIORITY (nice) - runs every 5 minutes at :04, :09, :14, etc. (offset by 4 minutes)
+4,9,14,19,24,29,34,39,44,49,54,59 * * * * mkdir -p ~/logs; ionice -c3 -n7 nice -n19 ~/GRQ/elephant.sh > ~/logs/elephant.log 2>&1
+EOF
+  
+  sudo -u $USERNAME crontab "$CRON_FILE"
+  rm -f "$CRON_FILE"
+  echo "Elephant crontab installed with low priority (nice)"
+}
+
+# Install crontabs
+create_rocket_crontab
+create_sloth_crontab
+
+if [[ "$CREATE_ELEPHANT" == "true" ]]; then
+  create_elephant_crontab
 fi
+
+echo "All user crontabs installed with appropriate priority settings"
 
 # Final setup message
 if [[ "$CREATE_ELEPHANT" == "true" ]]; then
