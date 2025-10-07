@@ -546,13 +546,13 @@ create_rocket_crontab() {
   
   cat > "$CRON_FILE" <<EOF
 SHELL=/bin/bash
-# Rocket user - HIGHEST PRIORITY (unnice) - runs every 5 minutes at :00, :05, :10, etc.
-0,5,10,15,20,25,30,35,40,45,50,55 * * * * ionice -c1 -n0 nice -n-20 ~/GRQ/rocket.sh > ~/logs/rocket.log 2>&1
+# Rocket user - NORMAL PRIORITY (default) - runs every 5 minutes at :00, :05, :10, etc.
+0,5,10,15,20,25,30,35,40,45,50,55 * * * * ~/GRQ/rocket.sh > ~/logs/rocket.log 2>&1
 EOF
   
   sudo -u $USERNAME crontab "$CRON_FILE"
   rm -f "$CRON_FILE"
-  echo "Rocket crontab installed with highest priority (unnice)"
+  echo "Rocket crontab installed with normal priority (default)"
 }
 
 # Create sloth user crontab (LOW PRIORITY)
@@ -563,7 +563,7 @@ create_sloth_crontab() {
   cat > "$CRON_FILE" <<EOF
 SHELL=/bin/bash
 # Sloth user - LOW PRIORITY (nice) - runs every 5 minutes at :02, :07, :12, etc. (offset by 2 minutes)
-2,7,12,17,22,27,32,37,42,47,52,57 * * * * ionice -c3 -n7 nice -n19 ~/GRQ/sloth.sh > ~/logs/sloth.log 2>&1
+2,7,12,17,22,27,32,37,42,47,52,57 * * * * nice -n19 ~/GRQ/sloth.sh > ~/logs/sloth.log 2>&1
 EOF
   
   sudo -u $USERNAME crontab "$CRON_FILE"
@@ -579,7 +579,7 @@ create_elephant_crontab() {
   cat > "$CRON_FILE" <<EOF
 SHELL=/bin/bash
 # Elephant user - LOW PRIORITY (nice) - runs every 5 minutes at :04, :09, :14, etc. (offset by 4 minutes)
-4,9,14,19,24,29,34,39,44,49,54,59 * * * * ionice -c3 -n7 nice -n19 ~/GRQ/elephant.sh > ~/logs/elephant.log 2>&1
+4,9,14,19,24,29,34,39,44,49,54,59 * * * * nice -n19 ~/GRQ/elephant.sh > ~/logs/elephant.log 2>&1
 EOF
   
   sudo -u $USERNAME crontab "$CRON_FILE"
