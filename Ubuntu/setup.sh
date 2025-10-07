@@ -332,6 +332,13 @@ else
   fi
 fi
 
+# Check if jq is available (should be system-wide)
+if ! command -v jq &> /dev/null; then
+  echo "ERROR: jq is not available. Please ensure jq is installed system-wide."
+  echo "This should have been installed during system setup."
+  exit 1
+fi
+
 # Generate SSH key if missing
 if [[ ! -f "\$HOME/.ssh/id_ed25519" ]]; then
   echo "Generating new SSH key for \$USERNAME..."
@@ -418,11 +425,11 @@ if [[ -n "$(which apt-get)" ]]; then
   sudo apt update
   sudo apt upgrade -y
   # Install only absolutely essential packages for ML training
-  sudo apt install -y git openssh-server cpufrequtils
+  sudo apt install -y git openssh-server cpufrequtils jq
   # Remove unnecessary packages that might have been installed
   echo "Removing unnecessary packages for pure ML training machine..."
   sudo apt remove --purge -y rustc cargo rustup 2>/dev/null || true
-  sudo apt remove --purge -y jq curl 2>/dev/null || true
+  sudo apt remove --purge -y curl 2>/dev/null || true
   sudo apt remove --purge -y build-essential make gcc g++ 2>/dev/null || true
   sudo apt remove --purge -y man-db manpages 2>/dev/null || true
   sudo apt remove --purge -y nano vim-tiny 2>/dev/null || true
@@ -497,7 +504,7 @@ if command -v deno &> /dev/null; then
   deno upgrade
 else
   echo "Installing Deno..."
-  curl -fsSL https://deno.land/install.sh | sh
+   curl -fsSL https://deno.land/install.sh | sh
 fi
 
 # Upgrade Rust
