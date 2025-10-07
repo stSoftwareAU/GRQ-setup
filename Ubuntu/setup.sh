@@ -313,23 +313,18 @@ set -e
 USERNAME=\$(whoami)
 NODE_NUMBER=${NODE_NUMBER}
 
-# Upgrade tools first
-echo "Upgrading Deno and Rust tools..."
-if [[ -f "\$HOME/upgrade_tools.sh" ]]; then
-  bash "\$HOME/upgrade_tools.sh"
-else
-  echo "Upgrade script not found, installing tools manually..."
-  # Install Deno if missing
-  if ! command -v deno &> /dev/null; then
-    curl -fsSL https://deno.land/install.sh | sh
-    export PATH="\$HOME/.deno/bin:\$PATH"
-  fi
-  
-  # Install Rust if missing
-  if ! command -v rustc &> /dev/null; then
-    curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    export PATH="\$HOME/.cargo/bin:\$PATH"
-  fi
+# Install tools if missing (upgrades handled in training scripts)
+echo "Installing Deno and Rust tools if missing..."
+# Install Deno if missing
+if ! command -v deno &> /dev/null; then
+  curl -fsSL https://deno.land/install.sh | sh
+  export PATH="\$HOME/.deno/bin:\$PATH"
+fi
+
+# Install Rust if missing
+if ! command -v rustc &> /dev/null; then
+  curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  export PATH="\$HOME/.cargo/bin:\$PATH"
 fi
 
 # Check if jq is available (should be system-wide)
@@ -491,38 +486,9 @@ install_user_tools() {
     echo 'export PATH="$HOME/.cargo/bin:$PATH"' | sudo -u $USERNAME tee -a "$BASHRC" > /dev/null
   fi
   
-  # Create upgrade script for this user
-  sudo -u $USERNAME tee "$USER_HOME/upgrade_tools.sh" > /dev/null <<EOF
-#!/bin/bash
-# Auto-upgrade script for $USERNAME user
-
-echo "Upgrading tools for $USERNAME..."
-
-# Upgrade Deno
-if command -v deno &> /dev/null; then
-  echo "Upgrading Deno..."
-  deno upgrade
-else
-  echo "Installing Deno..."
-   curl -fsSL https://deno.land/install.sh | sh
-fi
-
-# Upgrade Rust
-if command -v rustup &> /dev/null; then
-  echo "Upgrading Rust..."
-  rustup update
-else
-  echo "Installing Rust..."
-  curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-fi
-
-echo "Tools upgraded for $USERNAME"
-EOF
+  # Note: Tool upgrades are handled in the user's training scripts
   
-  sudo chmod +x "$USER_HOME/upgrade_tools.sh"
-  sudo chown $USERNAME:$USERNAME "$USER_HOME/upgrade_tools.sh"
-  
-  echo "Tools and upgrade script configured for $USERNAME"
+  echo "Tools configured for $USERNAME"
 }
 
 # Install tools for each user
