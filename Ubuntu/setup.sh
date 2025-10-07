@@ -433,7 +433,7 @@ if [[ -n "$(which apt-get)" ]]; then
   sudo apt update
   sudo apt upgrade -y
   # Install only absolutely essential packages for ML training
-  sudo apt install -y git openssh-server cpufrequtils jq curl htop
+  sudo apt install -y git openssh-server cpufrequtils jq curl htop unzip
   # Remove unnecessary packages that might have been installed
   echo "Removing unnecessary packages for pure ML training machine..."
   sudo apt remove --purge -y rustc cargo rustup 2>/dev/null || true
