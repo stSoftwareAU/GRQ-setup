@@ -119,9 +119,33 @@ Unattended-Upgrade::Remove-Unused-Dependencies "true";
 Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
 EOF
 
-# Disable sleep and low power modes
-echo "Disabling sleep and power management"
+# Disable sleep and low power modes for maximum performance
+echo "Disabling sleep and power management for ML training"
 sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+
+# Disable unnecessary services for ML training performance
+echo "Disabling unnecessary services for maximum CPU performance"
+# Disable snap services (often resource-heavy)
+sudo systemctl disable --now snapd 2>/dev/null || true
+sudo systemctl mask snapd 2>/dev/null || true
+
+# Disable bluetooth (not needed for ML training)
+sudo systemctl disable --now bluetooth 2>/dev/null || true
+sudo systemctl mask bluetooth 2>/dev/null || true
+
+# Disable cups (printing service)
+sudo systemctl disable --now cups 2>/dev/null || true
+sudo systemctl mask cups 2>/dev/null || true
+
+# Disable ModemManager (not needed)
+sudo systemctl disable --now ModemManager 2>/dev/null || true
+sudo systemctl mask ModemManager 2>/dev/null || true
+
+# Set CPU governor to performance mode
+echo "Setting CPU to performance mode"
+echo 'GOVERNOR="performance"' | sudo tee /etc/default/cpufrequtils > /dev/null 2>/dev/null || true
+sudo systemctl enable cpufrequtils 2>/dev/null || true
+sudo systemctl start cpufrequtils 2>/dev/null || true
 
 # Configure core dumps
 echo "Configuring core dumps"
@@ -333,46 +357,8 @@ sudo systemctl enable ssh
 sudo systemctl start ssh
 echo "SSH server enabled and started"
 
-# Install and configure VNC server (equivalent to Screen Sharing) (idempotent)
-echo "Installing VNC server..."
-if ! dpkg -l | grep -q tightvncserver; then
-  sudo apt install -y xfce4 xfce4-goodies tightvncserver
-  echo "VNC server installed"
-else
-  echo "VNC server already installed"
-fi
-
-# Configure VNC for rocket and sloth users (idempotent)
-configure_vnc_user() {
-  local USERNAME=$1
-  local VNC_DIR="/home/$USERNAME/.vnc"
-  local XSTARTUP_FILE="$VNC_DIR/xstartup"
-  
-  sudo -u $USERNAME mkdir -p "$VNC_DIR"
-  
-  # Check if xstartup already exists and is correct
-  if [[ -f "$XSTARTUP_FILE" ]] && grep -q "startxfce4" "$XSTARTUP_FILE"; then
-    echo "VNC configuration for $USERNAME already exists"
-  else
-    echo "Configuring VNC for $USERNAME"
-    sudo -u $USERNAME tee "$XSTARTUP_FILE" > /dev/null <<EOF
-#!/bin/bash
-xrdb \$HOME/.Xresources
-startxfce4 &
-EOF
-    
-    sudo chmod +x "$XSTARTUP_FILE"
-    sudo chown $USERNAME:$USERNAME "$XSTARTUP_FILE"
-    echo "VNC configured for $USERNAME"
-  fi
-}
-
-configure_vnc_user "rocket"
-configure_vnc_user "sloth"
-
-if [[ "$CREATE_ELEPHANT" == "true" ]]; then
-  configure_vnc_user "elephant"
-fi
+# Skip VNC installation - not needed for headless ML training machines
+echo "Skipping VNC installation (not needed for headless ML training)"
 
 # Configure system settings
 echo "Configuring system settings..."
@@ -380,9 +366,21 @@ echo "Configuring system settings..."
 # Disable password hints
 sudo sed -i 's/# PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Disable automatic Time Machine prompts (Ubuntu equivalent - disable backup prompts)
-sudo apt install -y deja-dup
-sudo gsettings set org.gnome.DejaDup backend 'none'
+# Remove unnecessary packages for ML training performance
+echo "Removing unnecessary packages for maximum CPU performance"
+# Remove desktop environments and GUI packages
+sudo apt remove --purge -y ubuntu-desktop-minimal ubuntu-desktop xfce4* 2>/dev/null || true
+# Remove backup services
+sudo apt remove --purge -y deja-dup 2>/dev/null || true
+# Remove development tools not needed for training
+sudo apt remove --purge -y build-essential make gcc g++ 2>/dev/null || true
+# Remove documentation and man pages
+sudo apt remove --purge -y man-db manpages 2>/dev/null || true
+# Remove text editors
+sudo apt remove --purge -y nano vim-tiny 2>/dev/null || true
+# Disable any remaining backup services
+sudo systemctl disable --now deja-dup 2>/dev/null || true
+sudo systemctl mask deja-dup 2>/dev/null || true
 
 # Mark system as ephemeral/safe to wipe
 echo "🧼 Note: This system is considered safe-to-wipe. All AI training data syncs hourly to GitHub."
@@ -397,14 +395,15 @@ if [[ -n "$(which apt-get)" ]]; then
 
   sudo apt update
   sudo apt upgrade -y
-  sudo apt install -y jq curl zip git openssh-server
+  # Install only essential packages for ML training
+  sudo apt install -y git openssh-server cpufrequtils
+  # Remove unnecessary packages that might be installed
+  sudo apt remove --purge -y jq curl zip 2>/dev/null || true
   sudo apt autoremove --purge -y
 fi
 
-# Install Deno if not present
-if [[ ! -d ~/.deno/bin ]]; then
-   curl -fsSL https://deno.land/install.sh | sh
-fi
+# Skip Deno installation - not needed for pure ML training
+echo "Skipping Deno installation (not needed for ML training)"
 
 # Set timezone
 sudo timedatectl set-timezone Australia/Sydney
