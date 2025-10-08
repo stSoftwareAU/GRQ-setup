@@ -5,7 +5,8 @@
    
 # Ubuntu server setup
 1. sudo apt update
-2. 
+2. sudo apt install git
+   
 # GRQ-setup for Mac Mini Cluster Nodes
 
 ## 🚀 Automated Setup
