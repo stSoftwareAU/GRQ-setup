@@ -1,13 +1,11 @@
 # GRQ-setup
 1. [Create SSH key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
-2. ssh-copy-id nigel@10.0.0.11
 3. mkdir ~/src && cd ~/src
 4. git clone git@github.com:stSoftwareAU/GRQ-setup.git
-5. GRQ-setup/MacOS/setup.sh XX
-6. git clone git@github.com:stSoftwareAU/GRQ.git
-7. vi GRQ/.option.txt
-8. GRQ/worker/upgrade.sh
-  
+   
+# Ubuntu server setup
+1. sudo apt update
+2. 
 # GRQ-setup for Mac Mini Cluster Nodes
 
 ## 🚀 Automated Setup
