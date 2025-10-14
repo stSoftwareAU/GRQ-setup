@@ -205,8 +205,7 @@ echo "SSH server enabled and started"
 # Install essential packages only
 echo "Installing essential packages..."
 sudo apt update
-sudo apt install -y git openssh-server jq curl htop unzip cron bc rsync
-
+sudo apt install -y git openssh-server jq curl htop unzip cron bc rsync build-essential
 # Set timezone
 sudo timedatectl set-timezone Australia/Sydney
 
