@@ -1,8 +1,10 @@
 {
     "cSpell.words": [
         "autorestart",
+        "crontabs",
         "disksleep",
         "displaysleep",
+        "dnsutils",
         "dscacheutil",
         "flushcache",
         "highprioritytask",
@@ -19,6 +21,7 @@
         "setrestartfreeze",
         "settimezone",
         "softwareupdate",
-        "systemsetup"
+        "systemsetup",
+        "timedatectl"
     ]
 }
