@@ -209,6 +209,24 @@ sudo apt install -y git openssh-server jq curl htop unzip cron bc rsync build-es
 # Set timezone
 sudo timedatectl set-timezone Australia/Sydney
 
+# Install Rust (rustup + cargo) system-wide for runlib.sh compatibility
+echo "Installing Rust (rustup + cargo) system-wide..."
+if ! command -v cargo &> /dev/null || ! command -v rustup &> /dev/null; then
+  # Install Rust for the current user (will be available system-wide via PATH)
+  curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  # Add Rust to PATH for current session
+  export PATH="$HOME/.cargo/bin:$PATH"
+  # Ensure it's in PATH for future sessions
+  if ! grep -q "\.cargo/bin" "$HOME/.bashrc" 2>/dev/null; then
+    echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$HOME/.bashrc"
+  fi
+  echo "Rust installed successfully"
+else
+  echo "Rust already installed"
+  # Ensure PATH is set
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
 # Install user-specific crontabs with priority settings (idempotent)
 echo "Installing user-specific crontabs with priority settings"
 

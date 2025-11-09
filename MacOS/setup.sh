@@ -107,6 +107,42 @@ if [[ -d /cores ]]; then
   sudo find /cores -name "core.*" -type f -delete 2>/dev/null || true
 fi
 
+# Install essential tools: jq and Rust (cargo + rustup)
+echo "Installing essential tools: jq and Rust"
+
+# Install jq
+if ! command -v jq &> /dev/null; then
+  echo "Installing jq..."
+  if command -v brew &> /dev/null; then
+    brew install jq
+  else
+    echo "⚠️ Homebrew not found. Please install jq manually: brew install jq"
+    echo "Or download from: https://stedolan.github.io/jq/download/"
+  fi
+else
+  echo "jq already installed"
+fi
+
+# Install Rust (rustup + cargo)
+if ! command -v cargo &> /dev/null || ! command -v rustup &> /dev/null; then
+  echo "Installing Rust (rustup + cargo)..."
+  curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  # Add Rust to PATH for current session
+  export PATH="$HOME/.cargo/bin:$PATH"
+  # Ensure it's in PATH for future sessions
+  if ! grep -q "\.cargo/bin" "$HOME/.zshrc" 2>/dev/null; then
+    echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$HOME/.zshrc"
+  fi
+  if ! grep -q "\.cargo/bin" "$HOME/.bash_profile" 2>/dev/null; then
+    echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$HOME/.bash_profile"
+  fi
+  echo "Rust installed successfully"
+else
+  echo "Rust already installed"
+  # Ensure PATH is set
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
 # Create automated users rocket and sloth
 create_automated_user() {
   local USERNAME=$1
