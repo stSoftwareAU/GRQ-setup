@@ -2,6 +2,7 @@
 set -e
 
 BASE_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
 cd "${BASE_DIR}"
 
 # Validate arguments
@@ -107,6 +108,59 @@ if [[ -d /cores ]]; then
   sudo find /cores -name "core.*" -type f -delete 2>/dev/null || true
 fi
 
+# Ensure jq is available for subsequent provisioning steps
+ensure_jq_available() {
+  if command -v jq >/dev/null 2>&1; then
+    echo "jq already present."
+    return
+  fi
+
+  echo "Installing jq for all users..."
+
+  if command -v brew >/dev/null 2>&1; then
+    if ! brew list jq >/dev/null 2>&1; then
+      brew install jq
+    fi
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    echo "jq installed via Homebrew."
+    return
+  fi
+
+  local ARCH
+  local JQ_URL=""
+  ARCH="$(uname -m)"
+  case "$ARCH" in
+    arm64)
+      JQ_URL="https://github.com/stedolan/jq/releases/download/jq-1.7.1/jq-macos-arm64"
+      ;;
+    x86_64)
+      JQ_URL="https://github.com/stedolan/jq/releases/download/jq-1.7.1/jq-macos-amd64"
+      ;;
+    *)
+      echo "Unsupported architecture ${ARCH} for automatic jq installation."
+      return 1
+      ;;
+  esac
+
+  local TMP_FILE
+  TMP_FILE="$(mktemp)"
+  curl -fsSL "${JQ_URL}" -o "${TMP_FILE}"
+  sudo mkdir -p /usr/local/bin
+  sudo install -m 0755 "${TMP_FILE}" /usr/local/bin/jq
+  rm -f "${TMP_FILE}"
+
+  if command -v jq >/dev/null 2>&1; then
+    echo "jq installed via direct download."
+  else
+    echo "Failed to install jq automatically. Please install jq manually before continuing."
+    exit 1
+  fi
+}
+
+ensure_jq_available
+
 # Create automated users rocket and sloth
 create_automated_user() {
   local USERNAME=$1
@@ -152,6 +206,40 @@ set -e
 
 USERNAME=\$(whoami)
 NODE_NUMBER=${NODE_NUMBER}
+CARGO_PATH_SNIPPET='export PATH="\$HOME/.cargo/bin:\$PATH"'
+
+if [[ -f "\$HOME/.cargo/env" ]]; then
+  # shellcheck disable=SC1091
+  source "\$HOME/.cargo/env"
+fi
+
+# Confirm jq is present (installed system-wide during macOS provisioning)
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq is required but missing. Please ask an administrator to rerun the macOS setup before continuing."
+  exit 1
+fi
+
+# Install Rust toolchain if absent
+if ! command -v rustc >/dev/null 2>&1; then
+  echo "Installing Rust toolchain for \$USERNAME..."
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  if [[ -f "\$HOME/.cargo/env" ]]; then
+    # shellcheck disable=SC1091
+    source "\$HOME/.cargo/env"
+  fi
+fi
+
+export PATH="\$HOME/.cargo/bin:\$PATH"
+
+for profile in "\$HOME/.zprofile" "\$HOME/.zshrc" "\$HOME/.bash_profile" "\$HOME/.bashrc" "\$HOME/.profile"; do
+  if [[ -f "\$profile" ]]; then
+    if ! grep -F "\$CARGO_PATH_SNIPPET" "\$profile" >/dev/null 2>&1; then
+      echo "\$CARGO_PATH_SNIPPET" >> "\$profile"
+    fi
+  else
+    echo "\$CARGO_PATH_SNIPPET" >> "\$profile"
+  fi
+done
 
 # Generate SSH key if missing
 if [[ ! -f "\$HOME/.ssh/id_ed25519" ]]; then
