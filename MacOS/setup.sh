@@ -7,12 +7,14 @@ cd "${BASE_DIR}"
 
 # Validate arguments
 if [[ -z "$1" || -z "$2" ]]; then
-  echo "Usage: $0 <node_number> <automated_password>"
+  echo "Usage: $0 <node_number> <automated_password> [create_elephant]"
+  echo "  create_elephant: optional 'true' to create elephant user for heavy lift tasks"
   exit 1
 fi
 
 NODE_NUMBER="$1"
 AUTOMATED_PASSWORD="$2"
+CREATE_ELEPHANT="$3"
 HOSTNAME="GRQ-${NODE_NUMBER}"
 IP_ADDRESS="10.0.0.${NODE_NUMBER}"
 CURRENT_USER=$(whoami)
@@ -180,6 +182,43 @@ create_automated_user() {
 create_automated_user "rocket" "High performance Automated User"
 create_automated_user "sloth" "Low priority Automated User"
 
+# Create elephant user if requested
+ELEPHANT_HOME=""
+if [[ "$CREATE_ELEPHANT" == "true" ]]; then
+  echo "Creating elephant user for heavy lift tasks"
+  if ! id -u "elephant" &>/dev/null; then
+    create_automated_user "elephant" "Heavy lift Automated User"
+    ELEPHANT_HOME="/Users/elephant"
+  else
+    echo "User elephant already exists"
+    # Get the actual home directory (may be on removable drive like /Volumes/sudo or /Volumes/GRQ/Elephant)
+    ELEPHANT_HOME=$(dscl . -read /Users/elephant NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+    if [[ -z "$ELEPHANT_HOME" ]]; then
+      # Fallback method
+      ELEPHANT_HOME=$(eval echo ~elephant)
+    fi
+    
+    # Validate that we got a valid home directory
+    if [[ -z "$ELEPHANT_HOME" ]]; then
+      echo "ERROR: Could not determine elephant user's home directory"
+      exit 1
+    fi
+    
+    echo "Detected elephant home directory: $ELEPHANT_HOME"
+    
+    # Verify the home directory exists
+    if [[ ! -d "$ELEPHANT_HOME" ]]; then
+      echo "WARNING: Home directory $ELEPHANT_HOME does not exist or is not mounted"
+      echo "         The daemon will be configured, but ensure the drive is mounted before use"
+    fi
+    
+    # Update password in case it changed
+    sudo sysadminctl -resetPasswordFor "elephant" -newPassword "$AUTOMATED_PASSWORD" -adminUser "$CURRENT_USER"
+    # Ensure logs directory exists in the actual home directory
+    sudo -u elephant mkdir -p "$ELEPHANT_HOME/logs"
+  fi
+fi
+
 # Install and bootstrap Rocket Daemon
 echo "Installing Rocket Daemon"
 sudo cp rocket-daemon.plist /Library/LaunchDaemons/com.lecklogic.highprioritytask.plist
@@ -196,11 +235,81 @@ sudo chmod 644 /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
 sudo launchctl bootout system /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.lecklogic.lowprioritytask.plist
 
+# Install and bootstrap Elephant Daemon (only if elephant user exists)
+if [[ "$CREATE_ELEPHANT" == "true" ]]; then
+  # If ELEPHANT_HOME is not set, get it (should be set above, but fallback just in case)
+  if [[ -z "$ELEPHANT_HOME" ]]; then
+    if id -u "elephant" &>/dev/null; then
+      ELEPHANT_HOME=$(dscl . -read /Users/elephant NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+      if [[ -z "$ELEPHANT_HOME" ]]; then
+        ELEPHANT_HOME=$(eval echo ~elephant)
+      fi
+    else
+      ELEPHANT_HOME="/Users/elephant"
+    fi
+  fi
+  
+  # Validate ELEPHANT_HOME is set
+  if [[ -z "$ELEPHANT_HOME" ]]; then
+    echo "ERROR: ELEPHANT_HOME is not set. Cannot install daemon."
+    exit 1
+  fi
+  
+  echo ""
+  echo "Installing Elephant Daemon..."
+  echo "Using detected home directory: $ELEPHANT_HOME"
+  
+  # Generate daemon plist with actual home directory paths (supports removable drives)
+  sudo tee /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist > /dev/null <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lecklogic.heavylifttask</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${ELEPHANT_HOME}/GRQ/elephant.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>Nice</key>
+    <integer>20</integer> <!-- Low CPU priority for heavy disk I/O tasks -->
+    <key>UserName</key>
+    <string>elephant</string>
+    <key>WorkingDirectory</key>
+    <string>${ELEPHANT_HOME}</string>
+    <key>StandardOutPath</key>
+    <string>${ELEPHANT_HOME}/logs/elephant.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>${ELEPHANT_HOME}/logs/elephant.err.log</string>
+</dict>
+</plist>
+EOF
+  
+  sudo chown root:wheel /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist
+  sudo chmod 644 /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist
+  sudo launchctl bootout system /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist || true
+  sudo launchctl bootstrap system /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist
+  echo "Elephant daemon installed and started with paths pointing to $ELEPHANT_HOME"
+fi
+
 # Create per-user setup scripts for SSH key generation
 create_user_setup_script() {
   local USERNAME=$1
+  local USER_HOME=${2:-/Users/$USERNAME}
 
-  sudo tee /Users/$USERNAME/setup.sh > /dev/null <<EOF
+  # Ensure the home directory exists (important for removable drives)
+  if [[ ! -d "$USER_HOME" ]]; then
+    echo "WARNING: Home directory $USER_HOME does not exist. Attempting to create it..."
+    sudo mkdir -p "$USER_HOME"
+    sudo chown $USERNAME:staff "$USER_HOME"
+  fi
+
+  echo "Creating setup script for $USERNAME at $USER_HOME/setup.sh"
+  sudo tee "$USER_HOME/setup.sh" > /dev/null <<EOF
 #!/bin/bash
 set -e
 
@@ -269,12 +378,47 @@ echo "SECONDARY_READ_URL=nigel@10.0.0.11:Training" >> GRQ/.env
 
 EOF
 
-  sudo chmod +x /Users/$USERNAME/setup.sh
-  sudo chown $USERNAME:staff /Users/$USERNAME/setup.sh
+  sudo chmod +x "$USER_HOME/setup.sh"
+  sudo chown $USERNAME:staff "$USER_HOME/setup.sh"
+  echo "Setup script created for $USERNAME at $USER_HOME/setup.sh"
 }
 
 create_user_setup_script "rocket"
 create_user_setup_script "sloth"
+
+if [[ "$CREATE_ELEPHANT" == "true" ]]; then
+  # Use detected home directory for elephant (may be on removable drive)
+  # ELEPHANT_HOME should already be set above, but verify it's set here
+  if [[ -z "$ELEPHANT_HOME" ]]; then
+    echo "ELEPHANT_HOME not set, detecting elephant user's home directory..."
+    if id -u "elephant" &>/dev/null; then
+      ELEPHANT_HOME=$(dscl . -read /Users/elephant NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+      if [[ -z "$ELEPHANT_HOME" ]]; then
+        ELEPHANT_HOME=$(eval echo ~elephant)
+      fi
+    else
+      ELEPHANT_HOME="/Users/elephant"
+    fi
+  fi
+  
+  # Validate ELEPHANT_HOME is set
+  if [[ -z "$ELEPHANT_HOME" ]]; then
+    echo "ERROR: Could not determine elephant user's home directory for setup script"
+    exit 1
+  fi
+  
+  echo "Creating setup script for elephant at: $ELEPHANT_HOME/setup.sh"
+  create_user_setup_script "elephant" "$ELEPHANT_HOME"
+  
+  # Verify the setup script was created in the correct location
+  if [[ -f "$ELEPHANT_HOME/setup.sh" ]]; then
+    echo "✅ Verified: Setup script created at $ELEPHANT_HOME/setup.sh"
+  else
+    echo "❌ ERROR: Setup script was not created at $ELEPHANT_HOME/setup.sh"
+    echo "   Please check that the home directory exists and is writable"
+    exit 1
+  fi
+fi
 
 # 1. Enable Remote Management (Screen Sharing)
 echo "Enabling Screen Sharing..."
@@ -303,5 +447,9 @@ sudo defaults write com.apple.TimeMachine DoNotOfferNewDisksForBackup -bool true
 # 6. Mark system as ephemeral/safe to wipe
 echo "🧼 Note: This system is considered safe-to-wipe. All AI training data syncs hourly to GitHub."
 
-echo "🚀 Setup complete. Now login as 'rocket' and 'sloth' and run '~/setup.sh' to create their SSH keys!"
-# 
+# Final setup message
+if [[ "$CREATE_ELEPHANT" == "true" ]]; then
+  echo "🚀 Setup complete. Now login as 'rocket', 'sloth', and 'elephant' and run '~/setup.sh' to create their SSH keys!"
+else
+  echo "🚀 Setup complete. Now login as 'rocket' and 'sloth' and run '~/setup.sh' to create their SSH keys!"
+fi 

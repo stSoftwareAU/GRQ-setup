@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+  NOTE: This is a TEMPLATE file. The actual daemon plist is generated dynamically
+  by setup.sh and add-elephant-user.sh scripts based on the elephant user's actual
+  home directory (which may be on a removable drive like /Volumes/GRQ/Elephant).
+  
+  Do NOT install this file directly. Use the setup scripts instead.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lecklogic.heavylifttask</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/elephant/GRQ/elephant.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>Nice</key>
+    <integer>20</integer> <!-- Low CPU priority for heavy disk I/O tasks -->
+    <key>UserName</key>
+    <string>elephant</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/elephant</string>
+    <key>StandardOutPath</key>
+    <string>/Users/elephant/logs/elephant.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/elephant/logs/elephant.err.log</string>
+</dict>
+</plist>

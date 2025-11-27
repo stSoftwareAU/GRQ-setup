@@ -14,8 +14,35 @@
 Run the primary setup script with your node number:
 
 ```bash
-~/GRQ-stepup/MacOS/setup.sh 21 
+~/GRQ-setup/MacOS/setup.sh <node_number> <automated_password> [create_elephant]
 ```
+
+**Parameters:**
+- `node_number`: The node number (e.g., 21)
+- `automated_password`: Password for automated users (rocket, sloth, optional elephant)
+- `create_elephant`: Optional 'true' to create elephant user for heavy lift tasks with large removable drives
+
+**Examples:**
+```bash
+# Standard setup (rocket and sloth only)
+~/GRQ-setup/MacOS/setup.sh 21 "your_password"
+
+# Setup with elephant user for heavy disk tasks
+~/GRQ-setup/MacOS/setup.sh 21 "your_password" true
+```
+
+### 🐘 Adding Elephant User to Existing Machines
+
+If you need to add the elephant user to an existing Mac setup:
+
+```bash
+~/GRQ-setup/MacOS/add-elephant-user.sh <node_number> <automated_password>
+```
+
+This script will:
+- Create the elephant user
+- Set up the user's environment script
+- Install and start the elephant daemon for low-priority heavy disk tasks
 ## 🛠 Manual Tasks (one-time setup)
 
 After running setup.sh, you must manually enable SSH (Remote Login):
