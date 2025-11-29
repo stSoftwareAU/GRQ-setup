@@ -31,18 +31,35 @@ Run the primary setup script with your node number:
 ~/GRQ-setup/MacOS/setup.sh 21 "your_password" true
 ```
 
-### 🐘 Adding Elephant User to Existing Machines
+### 👤 Adding Users to Existing Machines
 
-If you need to add the elephant user to an existing Mac setup:
+If you need to add a user to an existing Mac setup (useful for users with home directories on removable drives):
 
 ```bash
-~/GRQ-setup/MacOS/add-elephant-user.sh <node_number> <automated_password>
+~/GRQ-setup/MacOS/add-user.sh <username> <node_number> <automated_password>
+```
+
+**Parameters:**
+- `username`: The username to create/add (e.g., "elephant", "worker")
+- `node_number`: The node number (e.g., 21)
+- `automated_password`: Password for the user
+
+**Examples:**
+```bash
+# Add elephant user for heavy disk tasks
+~/GRQ-setup/MacOS/add-user.sh elephant 21 "your_password"
+
+# Add any other user
+~/GRQ-setup/MacOS/add-user.sh worker 21 "your_password"
 ```
 
 This script will:
-- Create the elephant user
+- Create the user (or detect if they already exist)
+- Read the user's actual home directory (supports removable drives like `/Volumes/GRQ/Username`)
 - Set up the user's environment script
-- Install and start the elephant daemon for low-priority heavy disk tasks
+- Install and start a daemon that runs `<username>.sh` from the user's GRQ directory
+
+**Note:** The daemon will run a script named after the user (e.g., `elephant.sh` for user "elephant", `worker.sh` for user "worker") from `$HOME/GRQ/`.
 ## 🛠 Manual Tasks (one-time setup)
 
 After running setup.sh, you must manually enable SSH (Remote Login):
