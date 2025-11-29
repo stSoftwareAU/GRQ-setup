@@ -6,57 +6,59 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
 cd "${BASE_DIR}"
 
 # Validate arguments
-if [[ -z "$1" || -z "$2" ]]; then
-  echo "Usage: $0 <node_number> <automated_password>"
-  echo "  This script adds the elephant user to an existing Mac setup"
+if [[ -z "$1" || -z "$2" || -z "$3" ]]; then
+  echo "Usage: $0 <username> <node_number> <automated_password>"
+  echo "  This script adds a user to an existing Mac setup"
+  echo "  The daemon will run <username>.sh from the user's GRQ directory"
   exit 1
 fi
 
-NODE_NUMBER="$1"
-AUTOMATED_PASSWORD="$2"
+USERNAME="$1"
+NODE_NUMBER="$2"
+AUTOMATED_PASSWORD="$3"
 CURRENT_USER=$(whoami)
 
-echo "🐘 Adding Elephant user to existing Mac setup..."
+echo "👤 Adding user '$USERNAME' to existing Mac setup..."
 
-# Create elephant user or detect existing one
-ELEPHANT_HOME=""
-if ! id -u "elephant" &>/dev/null; then
-  echo "Creating user elephant"
-  sudo sysadminctl -addUser "elephant" -fullName "Heavy lift Automated User" -password "$AUTOMATED_PASSWORD" -home "/Users/elephant" -adminUser "$CURRENT_USER"
-  sudo createhomedir -c -u "elephant"
-  ELEPHANT_HOME="/Users/elephant"
-  echo "User elephant created successfully"
+# Create user or detect existing one
+USER_HOME=""
+if ! id -u "$USERNAME" &>/dev/null; then
+  echo "Creating user $USERNAME"
+  sudo sysadminctl -addUser "$USERNAME" -fullName "Automated User" -password "$AUTOMATED_PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
+  sudo createhomedir -c -u "$USERNAME"
+  USER_HOME="/Users/$USERNAME"
+  echo "User $USERNAME created successfully"
 else
-  echo "User elephant already exists"
-  # Get the actual home directory (may be on removable drive like /Volumes/sudo or /Volumes/GRQ/Elephant)
-  ELEPHANT_HOME=$(dscl . -read /Users/elephant NFSHomeDirectory 2>/dev/null | awk '{print $2}')
-  if [[ -z "$ELEPHANT_HOME" ]]; then
+  echo "User $USERNAME already exists"
+  # Get the actual home directory (may be on removable drive like /Volumes/GRQ/$USERNAME)
+  USER_HOME=$(dscl . -read /Users/$USERNAME NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+  if [[ -z "$USER_HOME" ]]; then
     # Fallback method
-    ELEPHANT_HOME=$(eval echo ~elephant)
+    USER_HOME=$(eval echo ~$USERNAME)
   fi
   
   # Validate that we got a valid home directory
-  if [[ -z "$ELEPHANT_HOME" ]]; then
-    echo "ERROR: Could not determine elephant user's home directory"
+  if [[ -z "$USER_HOME" ]]; then
+    echo "ERROR: Could not determine $USERNAME user's home directory"
     exit 1
   fi
   
-  echo "Detected elephant home directory: $ELEPHANT_HOME"
+  echo "Detected $USERNAME home directory: $USER_HOME"
   
   # Verify the home directory exists
-  if [[ ! -d "$ELEPHANT_HOME" ]]; then
-    echo "WARNING: Home directory $ELEPHANT_HOME does not exist or is not mounted"
+  if [[ ! -d "$USER_HOME" ]]; then
+    echo "WARNING: Home directory $USER_HOME does not exist or is not mounted"
     echo "         The daemon will be configured, but ensure the drive is mounted before use"
   fi
   
   # Update password in case it changed
-  sudo sysadminctl -resetPasswordFor "elephant" -newPassword "$AUTOMATED_PASSWORD" -adminUser "$CURRENT_USER"
-  echo "Password updated for elephant"
+  sudo sysadminctl -resetPasswordFor "$USERNAME" -newPassword "$AUTOMATED_PASSWORD" -adminUser "$CURRENT_USER"
+  echo "Password updated for $USERNAME"
 fi
 
 # Ensure logs directory exists in the actual home directory
-sudo -u elephant mkdir -p "$ELEPHANT_HOME/logs"
-echo "Logs directory ensured at $ELEPHANT_HOME/logs"
+sudo -u "$USERNAME" mkdir -p "$USER_HOME/logs"
+echo "Logs directory ensured at $USER_HOME/logs"
 
 # Create per-user setup script for SSH key generation
 create_user_setup_script() {
@@ -137,30 +139,35 @@ EOF
   echo "Setup script created for $USERNAME at $USER_HOME/setup.sh"
 }
 
-create_user_setup_script "elephant" "$ELEPHANT_HOME"
+create_user_setup_script "$USERNAME" "$USER_HOME"
 
-# Install and bootstrap Elephant Daemon with correct home directory paths
+# Install and bootstrap daemon with correct home directory paths
 echo ""
-echo "Installing Elephant Daemon..."
-echo "Using detected home directory: $ELEPHANT_HOME"
+echo "Installing daemon for $USERNAME..."
+echo "Using detected home directory: $USER_HOME"
 
-# Validate ELEPHANT_HOME is set
-if [[ -z "$ELEPHANT_HOME" ]]; then
-  echo "ERROR: ELEPHANT_HOME is not set. Cannot install daemon."
+# Validate USER_HOME is set
+if [[ -z "$USER_HOME" ]]; then
+  echo "ERROR: USER_HOME is not set. Cannot install daemon."
   exit 1
 fi
 
+# Generate daemon label based on username
+DAEMON_LABEL="com.lecklogic.${USERNAME}task"
+DAEMON_PLIST="/Library/LaunchDaemons/${DAEMON_LABEL}.plist"
+SCRIPT_NAME="${USERNAME}.sh"
+
 # Generate daemon plist with actual home directory paths (supports removable drives)
-sudo tee /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist > /dev/null <<EOF
+sudo tee "$DAEMON_PLIST" > /dev/null <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.lecklogic.heavylifttask</string>
+    <string>${DAEMON_LABEL}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${ELEPHANT_HOME}/GRQ/elephant.sh</string>
+        <string>${USER_HOME}/GRQ/${SCRIPT_NAME}</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -169,33 +176,33 @@ sudo tee /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist > /dev/null <<
     <key>Nice</key>
     <integer>20</integer> <!-- Low CPU priority for heavy disk I/O tasks -->
     <key>UserName</key>
-    <string>elephant</string>
+    <string>${USERNAME}</string>
     <key>WorkingDirectory</key>
-    <string>${ELEPHANT_HOME}</string>
+    <string>${USER_HOME}</string>
     <key>StandardOutPath</key>
-    <string>${ELEPHANT_HOME}/logs/elephant.out.log</string>
+    <string>${USER_HOME}/logs/${USERNAME}.out.log</string>
     <key>StandardErrorPath</key>
-    <string>${ELEPHANT_HOME}/logs/elephant.err.log</string>
+    <string>${USER_HOME}/logs/${USERNAME}.err.log</string>
 </dict>
 </plist>
 EOF
 
-sudo chown root:wheel /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist
-sudo chmod 644 /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist
-sudo launchctl bootout system /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist || true
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist
-echo "Elephant daemon installed and started with paths pointing to $ELEPHANT_HOME"
+sudo chown root:wheel "$DAEMON_PLIST"
+sudo chmod 644 "$DAEMON_PLIST"
+sudo launchctl bootout system "$DAEMON_PLIST" || true
+sudo launchctl bootstrap system "$DAEMON_PLIST"
+echo "Daemon installed and started with paths pointing to $USER_HOME"
 
 echo ""
-echo "✅ Elephant user setup complete!"
-if [[ -n "$ELEPHANT_HOME" ]]; then
-  echo "   - User 'elephant' home directory: $ELEPHANT_HOME"
+echo "✅ User '$USERNAME' setup complete!"
+if [[ -n "$USER_HOME" ]]; then
+  echo "   - User '$USERNAME' home directory: $USER_HOME"
 fi
-echo "   - Setup script created at $ELEPHANT_HOME/setup.sh"
-echo "   - Elephant daemon installed and started (running $ELEPHANT_HOME/GRQ/elephant.sh)"
+echo "   - Setup script created at $USER_HOME/setup.sh"
+echo "   - Daemon installed and started (running $USER_HOME/GRQ/${SCRIPT_NAME})"
 echo ""
 echo "🔧 Next steps:"
-echo "   1. Login as 'elephant' user"
+echo "   1. Login as '$USERNAME' user"
 echo "   2. Run '~/setup.sh' to create SSH keys and set up GRQ repository"
-echo "   3. Ensure removable drives are mounted for large disk tasks"
+echo "   3. Ensure removable drives are mounted if home directory is on external drive"
 
