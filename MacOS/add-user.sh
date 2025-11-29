@@ -31,10 +31,10 @@ if ! id -u "$USERNAME" &>/dev/null; then
 else
   echo "User $USERNAME already exists"
   # Get the actual home directory (may be on removable drive like /Volumes/GRQ/$USERNAME)
-  USER_HOME=$(dscl . -read /Users/$USERNAME NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+  USER_HOME=$(dscl . -read "/Users/$USERNAME" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
   if [[ -z "$USER_HOME" ]]; then
     # Fallback method
-    USER_HOME=$(eval echo ~$USERNAME)
+    USER_HOME=$(eval echo ~"$USERNAME")
   fi
   
   # Validate that we got a valid home directory
@@ -135,7 +135,7 @@ echo "SECONDARY_READ_URL=nigel@10.0.0.11:Training" >> GRQ/.env
 EOF
 
   sudo chmod +x "$USER_HOME/setup.sh"
-  sudo chown $USERNAME:staff "$USER_HOME/setup.sh"
+  sudo chown "$USERNAME:staff" "$USER_HOME/setup.sh"
   echo "Setup script created for $USERNAME at $USER_HOME/setup.sh"
 }
 
