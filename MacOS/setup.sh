@@ -137,6 +137,33 @@ if [[ -d /cores ]]; then
   sudo find /cores -name "core.*" -type f -delete 2>/dev/null || true
 fi
 
+# Ensure Homebrew is installed
+ensure_brew_available() {
+  if command -v brew >/dev/null 2>&1; then
+    echo "Homebrew already present."
+    return
+  fi
+
+  echo "Installing Homebrew..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+  # Add Homebrew to PATH for current session
+  if [[ -f /opt/homebrew/bin/brew ]]; then
+    export PATH="/opt/homebrew/bin:${PATH}"
+  elif [[ -f /usr/local/bin/brew ]]; then
+    export PATH="/usr/local/bin:${PATH}"
+  fi
+
+  if command -v brew >/dev/null 2>&1; then
+    echo "Homebrew installed successfully."
+  else
+    echo "Failed to install Homebrew. Please install Homebrew manually before continuing."
+    exit 1
+  fi
+}
+
+ensure_brew_available
+
 # Ensure jq is available for subsequent provisioning steps
 ensure_jq_available() {
   if command -v jq >/dev/null 2>&1; then
@@ -144,46 +171,15 @@ ensure_jq_available() {
     return
   fi
 
-  echo "Installing jq for all users..."
-
-  if command -v brew >/dev/null 2>&1; then
-    if ! brew list jq >/dev/null 2>&1; then
-      brew install jq
-    fi
+  echo "Installing jq via Homebrew..."
+  if ! brew list jq >/dev/null 2>&1; then
+    brew install jq
   fi
 
   if command -v jq >/dev/null 2>&1; then
     echo "jq installed via Homebrew."
-    return
-  fi
-
-  local ARCH
-  local JQ_URL=""
-  ARCH="$(uname -m)"
-  case "$ARCH" in
-    arm64)
-      JQ_URL="https://github.com/stedolan/jq/releases/download/jq-1.7.1/jq-macos-arm64"
-      ;;
-    x86_64)
-      JQ_URL="https://github.com/stedolan/jq/releases/download/jq-1.7.1/jq-macos-amd64"
-      ;;
-    *)
-      echo "Unsupported architecture ${ARCH} for automatic jq installation."
-      return 1
-      ;;
-  esac
-
-  local TMP_FILE
-  TMP_FILE="$(mktemp)"
-  curl -fsSL "${JQ_URL}" -o "${TMP_FILE}"
-  sudo mkdir -p /usr/local/bin
-  sudo install -m 0755 "${TMP_FILE}" /usr/local/bin/jq
-  rm -f "${TMP_FILE}"
-
-  if command -v jq >/dev/null 2>&1; then
-    echo "jq installed via direct download."
   else
-    echo "Failed to install jq automatically. Please install jq manually before continuing."
+    echo "Failed to install jq via Homebrew. Please install jq manually before continuing."
     exit 1
   fi
 }
@@ -197,47 +193,15 @@ ensure_aws_cli_available() {
     return
   fi
 
-  echo "Installing AWS CLI for all users..."
-
-  if command -v brew >/dev/null 2>&1; then
-    if ! brew list awscli >/dev/null 2>&1; then
-      brew install awscli
-    fi
+  echo "Installing AWS CLI via Homebrew..."
+  if ! brew list awscli >/dev/null 2>&1; then
+    brew install awscli
   fi
 
   if command -v aws >/dev/null 2>&1; then
     echo "AWS CLI installed via Homebrew."
-    return
-  fi
-
-  # Fallback: Install AWS CLI via direct download
-  echo "Installing AWS CLI via direct download..."
-  local ARCH
-  local AWS_CLI_URL=""
-  ARCH="$(uname -m)"
-  case "$ARCH" in
-    arm64)
-      AWS_CLI_URL="https://awscli.amazonaws.com/AWSCLIV2.pkg"
-      ;;
-    x86_64)
-      AWS_CLI_URL="https://awscli.amazonaws.com/AWSCLIV2.pkg"
-      ;;
-    *)
-      echo "Unsupported architecture ${ARCH} for automatic AWS CLI installation."
-      return 1
-      ;;
-  esac
-
-  local TMP_FILE
-  TMP_FILE="$(mktemp).pkg"
-  curl -fsSL "${AWS_CLI_URL}" -o "${TMP_FILE}"
-  sudo installer -pkg "${TMP_FILE}" -target /
-  rm -f "${TMP_FILE}"
-
-  if command -v aws >/dev/null 2>&1; then
-    echo "AWS CLI installed via direct download."
   else
-    echo "Failed to install AWS CLI automatically. Please install AWS CLI manually before continuing."
+    echo "Failed to install AWS CLI via Homebrew. Please install AWS CLI manually before continuing."
     exit 1
   fi
 }
