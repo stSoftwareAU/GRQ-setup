@@ -6,15 +6,24 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
 cd "${BASE_DIR}"
 
 # Validate arguments
-if [[ -z "$1" || -z "$2" ]]; then
-  echo "Usage: $0 <node_number> <automated_password> [create_elephant]"
+if [[ -z "$1" || -z "$2" || -z "$3" ]]; then
+  echo "Usage: $0 <mode> <node_number> <automated_password> [create_elephant]"
+  echo "  mode: 'local' or 'remote' - local sets static IP, remote uses DHCP"
   echo "  create_elephant: optional 'true' to create elephant user for heavy lift tasks"
   exit 1
 fi
 
-NODE_NUMBER="$1"
-AUTOMATED_PASSWORD="$2"
-CREATE_ELEPHANT="$3"
+MODE="$1"
+NODE_NUMBER="$2"
+AUTOMATED_PASSWORD="$3"
+CREATE_ELEPHANT="$4"
+
+# Validate mode parameter
+if [[ "$MODE" != "local" && "$MODE" != "remote" ]]; then
+  echo "ERROR: mode must be 'local' or 'remote'"
+  exit 1
+fi
+
 HOSTNAME="GRQ-${NODE_NUMBER}"
 IP_ADDRESS="10.0.0.${NODE_NUMBER}"
 CURRENT_USER=$(whoami)
@@ -26,58 +35,76 @@ sudo scutil --set LocalHostName "${HOSTNAME}"
 sudo scutil --set ComputerName "${HOSTNAME}"
 dscacheutil -flushcache
 
-# Setup network configuration - static IP on one interface, DHCP on the other
-echo "Configuring network"
+# Setup network configuration
+echo "Configuring network (mode: ${MODE})"
 ETHERNET=$(networksetup -listallnetworkservices | grep -Ei 'ethernet|lan' | sed 's/^\*//;s/^ //' | head -n1 || true)
 WIFI=$(networksetup -listallnetworkservices | grep -Ei 'wi[- ]?fi|airport' | sed 's/^\*//;s/^ //' | head -n1 || true)
 
-# Determine which interface to use for static IP (prefer Ethernet, fallback to Wi-Fi for MacBook Airs)
-STATIC_INTERFACE=""
-DHCP_INTERFACE=""
-
-if [[ -n "$ETHERNET" ]]; then
-  STATIC_INTERFACE="$ETHERNET"
-  DHCP_INTERFACE="$WIFI"
-  echo "🔧 Using Ethernet ($ETHERNET) for static IP, Wi-Fi ($WIFI) for DHCP"
-elif [[ -n "$WIFI" ]]; then
-  STATIC_INTERFACE="$WIFI"
+if [[ "$MODE" == "local" ]]; then
+  # Local mode: static IP on one interface, DHCP on the other
+  STATIC_INTERFACE=""
   DHCP_INTERFACE=""
-  echo "🔧 Using Wi-Fi ($WIFI) for static IP (MacBook Air or no Ethernet found)"
+
+  if [[ -n "$ETHERNET" ]]; then
+    STATIC_INTERFACE="$ETHERNET"
+    DHCP_INTERFACE="$WIFI"
+    echo "🔧 Using Ethernet ($ETHERNET) for static IP, Wi-Fi ($WIFI) for DHCP"
+  elif [[ -n "$WIFI" ]]; then
+    STATIC_INTERFACE="$WIFI"
+    DHCP_INTERFACE=""
+    echo "🔧 Using Wi-Fi ($WIFI) for static IP (MacBook Air or no Ethernet found)"
+  else
+    echo "⚠️ No network interfaces found — skipping network configuration."
+  fi
+
+  # Configure static IP on the chosen interface
+  if [[ -n "$STATIC_INTERFACE" ]]; then
+    echo "🔧 Configuring static IP on $STATIC_INTERFACE to ${IP_ADDRESS}"
+    sudo networksetup -setmanual "$STATIC_INTERFACE" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
+    sudo networksetup -setdnsservers "$STATIC_INTERFACE" 8.8.8.8 8.8.4.4
+  fi
+
+  # Configure DHCP on the other interface
+  if [[ -n "$DHCP_INTERFACE" ]]; then
+    echo "🔧 Configuring DHCP on $DHCP_INTERFACE"
+    sudo networksetup -setdhcp "$DHCP_INTERFACE"
+    sudo networksetup -setdnsservers "$DHCP_INTERFACE" empty
+  fi
+
+  # Set interface priority (static IP interface first)
+  ALL_SERVICES=$(networksetup -listallnetworkservices | sed 's/^\*//;s/^ //' | grep -v '^An asterisk')
+  REMAINING_SERVICES=$(echo "$ALL_SERVICES" | grep -vxF -e "$ETHERNET" -e "$WIFI")
+
+  # Build service order array, prioritizing the static IP interface
+  NEW_SERVICE_ORDER=()
+  [[ -n "$STATIC_INTERFACE" ]] && NEW_SERVICE_ORDER+=("$STATIC_INTERFACE")
+  [[ -n "$DHCP_INTERFACE" ]] && NEW_SERVICE_ORDER+=("$DHCP_INTERFACE")
+  while IFS= read -r service; do
+    [[ -n "$service" ]] && NEW_SERVICE_ORDER+=("$service")
+  done <<< "$REMAINING_SERVICES"
+
+  # Only reorder if we have services to order
+  if [[ ${#NEW_SERVICE_ORDER[@]} -gt 0 ]]; then
+    sudo networksetup -ordernetworkservices "${NEW_SERVICE_ORDER[@]}"
+  else
+    echo "⚠️ No network services found to reorder."
+  fi
 else
-  echo "⚠️ No network interfaces found — skipping network configuration."
-fi
-
-# Configure static IP on the chosen interface
-if [[ -n "$STATIC_INTERFACE" ]]; then
-  echo "🔧 Configuring static IP on $STATIC_INTERFACE to ${IP_ADDRESS}"
-  sudo networksetup -setmanual "$STATIC_INTERFACE" "${IP_ADDRESS}" 255.255.255.0 10.0.0.1
-  sudo networksetup -setdnsservers "$STATIC_INTERFACE" 8.8.8.8 8.8.4.4
-fi
-
-# Configure DHCP on the other interface
-if [[ -n "$DHCP_INTERFACE" ]]; then
-  echo "🔧 Configuring DHCP on $DHCP_INTERFACE"
-  sudo networksetup -setdhcp "$DHCP_INTERFACE"
-  sudo networksetup -setdnsservers "$DHCP_INTERFACE" empty
-fi
-
-# Set interface priority (static IP interface first)
-ALL_SERVICES=$(networksetup -listallnetworkservices | sed 's/^\*//;s/^ //' | grep -v '^An asterisk')
-REMAINING_SERVICES=$(echo "$ALL_SERVICES" | grep -vxF -e "$ETHERNET" -e "$WIFI")
-
-# Build service order array, prioritizing the static IP interface
-NEW_SERVICE_ORDER=()
-[[ -n "$STATIC_INTERFACE" ]] && NEW_SERVICE_ORDER+=("$STATIC_INTERFACE")
-[[ -n "$DHCP_INTERFACE" ]] && NEW_SERVICE_ORDER+=("$DHCP_INTERFACE")
-while IFS= read -r service; do
-  [[ -n "$service" ]] && NEW_SERVICE_ORDER+=("$service")
-done <<< "$REMAINING_SERVICES"
-
-# Only reorder if we have services to order
-if [[ ${#NEW_SERVICE_ORDER[@]} -gt 0 ]]; then
-  sudo networksetup -ordernetworkservices "${NEW_SERVICE_ORDER[@]}"
-else
-  echo "⚠️ No network services found to reorder."
+  # Remote mode: use DHCP on all interfaces
+  echo "🔧 Remote mode: Configuring all interfaces for DHCP"
+  if [[ -n "$ETHERNET" ]]; then
+    echo "🔧 Configuring DHCP on $ETHERNET"
+    sudo networksetup -setdhcp "$ETHERNET"
+    sudo networksetup -setdnsservers "$ETHERNET" empty
+  fi
+  if [[ -n "$WIFI" ]]; then
+    echo "🔧 Configuring DHCP on $WIFI"
+    sudo networksetup -setdhcp "$WIFI"
+    sudo networksetup -setdnsservers "$WIFI" empty
+  fi
+  if [[ -z "$ETHERNET" && -z "$WIFI" ]]; then
+    echo "⚠️ No network interfaces found — skipping network configuration."
+  fi
 fi
 
 # Auto-restart on freeze
@@ -162,6 +189,60 @@ ensure_jq_available() {
 }
 
 ensure_jq_available
+
+# Ensure AWS CLI is available for subsequent provisioning steps
+ensure_aws_cli_available() {
+  if command -v aws >/dev/null 2>&1; then
+    echo "AWS CLI already present."
+    return
+  fi
+
+  echo "Installing AWS CLI for all users..."
+
+  if command -v brew >/dev/null 2>&1; then
+    if ! brew list awscli >/dev/null 2>&1; then
+      brew install awscli
+    fi
+  fi
+
+  if command -v aws >/dev/null 2>&1; then
+    echo "AWS CLI installed via Homebrew."
+    return
+  fi
+
+  # Fallback: Install AWS CLI via direct download
+  echo "Installing AWS CLI via direct download..."
+  local ARCH
+  local AWS_CLI_URL=""
+  ARCH="$(uname -m)"
+  case "$ARCH" in
+    arm64)
+      AWS_CLI_URL="https://awscli.amazonaws.com/AWSCLIV2.pkg"
+      ;;
+    x86_64)
+      AWS_CLI_URL="https://awscli.amazonaws.com/AWSCLIV2.pkg"
+      ;;
+    *)
+      echo "Unsupported architecture ${ARCH} for automatic AWS CLI installation."
+      return 1
+      ;;
+  esac
+
+  local TMP_FILE
+  TMP_FILE="$(mktemp).pkg"
+  curl -fsSL "${AWS_CLI_URL}" -o "${TMP_FILE}"
+  sudo installer -pkg "${TMP_FILE}" -target /
+  rm -f "${TMP_FILE}"
+
+  if command -v aws >/dev/null 2>&1; then
+    echo "AWS CLI installed via direct download."
+  else
+    echo "Failed to install AWS CLI automatically. Please install AWS CLI manually before continuing."
+    exit 1
+  fi
+}
+
+ensure_aws_cli_available
 
 # Create automated users rocket and sloth
 create_automated_user() {

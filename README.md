@@ -17,30 +17,37 @@ Setup scripts for GRQ (ML Training) cluster nodes on macOS and Ubuntu.
 Run the primary setup script to configure a Mac Mini cluster node:
 
 ```bash
-~/src/GRQ-setup/MacOS/setup.sh <node_number> <automated_password> [create_elephant]
+~/src/GRQ-setup/MacOS/setup.sh <mode> <node_number> <automated_password> [create_elephant]
 ```
 
 **Parameters:**
-- `node_number`: The node number (e.g., 21) - sets hostname to `GRQ-21` and static IP to `10.0.0.21`
+- `mode`: `local` or `remote` - local mode sets static IP (`10.0.0.<node_number>`), remote mode uses DHCP
+- `node_number`: The node number (e.g., 21) - sets hostname to `GRQ-21`
 - `automated_password`: Password for automated users (rocket, sloth, optional elephant)
 - `create_elephant`: Optional `true` to create elephant user for heavy lift tasks with large removable drives
 
 **Examples:**
 ```bash
-# Standard setup (rocket and sloth only)
-~/src/GRQ-setup/MacOS/setup.sh 21 "your_password"
+# Local setup with static IP (rocket and sloth only)
+~/src/GRQ-setup/MacOS/setup.sh local 21 "your_password"
 
-# Setup with elephant user for heavy disk tasks
-~/src/GRQ-setup/MacOS/setup.sh 21 "your_password" true
+# Local setup with elephant user for heavy disk tasks
+~/src/GRQ-setup/MacOS/setup.sh local 21 "your_password" true
+
+# Remote setup using DHCP
+~/src/GRQ-setup/MacOS/setup.sh remote 21 "your_password"
 ```
 
 **What the setup script does:**
 - Sets hostname to `GRQ-<node_number>`
-- Configures network: static IP (`10.0.0.<node_number>`) on primary interface, DHCP on secondary
+- Configures network:
+  - **Local mode**: static IP (`10.0.0.<node_number>`) on primary interface, DHCP on secondary
+  - **Remote mode**: DHCP on all interfaces
 - Disables sleep and low power modes
 - Enables automatic updates
 - Configures core dumps (limited to save disk space)
 - Installs `jq` (system-wide)
+- Installs AWS CLI (system-wide)
 - Creates automated users:
   - **rocket**: High performance automated user (high priority daemon)
   - **sloth**: Low priority automated user (low priority daemon)
