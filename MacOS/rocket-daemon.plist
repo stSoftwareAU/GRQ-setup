@@ -19,8 +19,8 @@
     <key>WorkingDirectory</key>
     <string>/Users/rocket</string>
     <key>StandardOutPath</key>
-    <string>/Users/rocket/logs/rocket.out.log</string>
+    <string>/Users/rocket/logs/rocket.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/rocket/logs/rocket.err.log</string>
+    <string>/Users/rocket/logs/rocket.err</string>
 </dict>
 </plist>

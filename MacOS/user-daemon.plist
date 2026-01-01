@@ -28,9 +28,8 @@
     <key>WorkingDirectory</key>
     <string>/Users/username</string>
     <key>StandardOutPath</key>
-    <string>/Users/username/logs/username.out.log</string>
+    <string>/Users/username/logs/username.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/username/logs/username.err.log</string>
+    <string>/Users/username/logs/username.err</string>
 </dict>
 </plist>
-

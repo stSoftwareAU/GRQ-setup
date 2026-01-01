@@ -17,8 +17,8 @@
     <key>WorkingDirectory</key>
     <string>/Users/sloth</string>
     <key>StandardOutPath</key>
-    <string>/Users/sloth/logs/sloth.out.log</string>
+    <string>/Users/sloth/logs/sloth.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/sloth/logs/sloth.err.log</string>
+    <string>/Users/sloth/logs/sloth.err</string>
 </dict>
 </plist>
