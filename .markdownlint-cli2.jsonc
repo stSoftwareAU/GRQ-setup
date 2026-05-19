@@ -1,0 +1,15 @@
+// markdownlint-cli2 configuration (Issue #9)
+// See https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+{
+  "config": {
+    // Line length is not enforced — prose lines may exceed 80 chars.
+    "MD013": false,
+    // Allow files that do not begin with a top-level heading (e.g. PR summaries).
+    "MD041": false,
+    // Allow duplicate headings under different parents (e.g. "Automated Setup"
+    // appearing in both the macOS and Ubuntu sections).
+    "MD024": { "siblings_only": true }
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["node_modules", ".git"]
+}

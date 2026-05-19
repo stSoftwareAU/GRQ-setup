@@ -21,12 +21,14 @@ Run the primary setup script to configure a Mac Mini cluster node:
 ```
 
 **Parameters:**
+
 - `mode`: `local` or `remote` - local mode sets static IP (`10.0.0.<node_number>`), remote mode uses DHCP
 - `node_number`: The node number (e.g., 21) - sets hostname to `GRQ-21`
 - `automated_password`: Password for automated users (rocket, sloth, optional elephant)
 - `create_elephant`: Optional `true` to create elephant user for heavy lift tasks with large removable drives
 
 **Examples:**
+
 ```bash
 # Local setup with static IP (rocket and sloth only)
 ~/src/GRQ-setup/MacOS/setup.sh local 21 "your_password"
@@ -39,6 +41,7 @@ Run the primary setup script to configure a Mac Mini cluster node:
 ```
 
 **What the setup script does:**
+
 - Sets hostname to `GRQ-<node_number>`
 - Configures network:
   - **Local mode**: static IP (`10.0.0.<node_number>`) on primary interface, DHCP on secondary
@@ -68,11 +71,13 @@ To add a user to an existing Mac setup (useful for users with home directories o
 ```
 
 **Parameters:**
+
 - `username`: The username to create/add (e.g., "elephant", "worker")
 - `node_number`: The node number (e.g., 21)
 - `automated_password`: Password for the user
 
 **Examples:**
+
 ```bash
 # Add elephant user for heavy disk tasks
 ~/src/GRQ-setup/MacOS/add-user.sh elephant 21 "your_password"
@@ -82,6 +87,7 @@ To add a user to an existing Mac setup (useful for users with home directories o
 ```
 
 **What this script does:**
+
 - Creates the user (or detects if they already exist)
 - Reads the user's actual home directory (supports removable drives like `/Volumes/GRQ/Username`)
 - Sets up the user's environment script (`~/setup.sh`)
@@ -120,6 +126,7 @@ Each Mac is set up using your Apple ID but does not retain any personal services
 3. Disable Handoff, Continuity, and Apple Watch unlock
 
 **Remote Access:**
+
 - **Screen Sharing** is enabled and available through your Apple ID or local network
 - If a password reset is needed, machines may be wiped and re-setup using `setup.sh`
 
@@ -138,11 +145,13 @@ Run the setup script to configure an Ubuntu server node:
 ```
 
 **Parameters:**
+
 - `node_number`: The node number (e.g., 21) - sets hostname to `GRQ-21`
 - `automated_password`: Password for automated users (rocket, sloth, optional elephant)
 - `create_elephant`: Optional `true` to create elephant user for heavy lift tasks
 
 **Examples:**
+
 ```bash
 # Standard setup (rocket and sloth only)
 ~/src/GRQ-setup/Ubuntu/setup.sh 21 "your_password"
@@ -152,6 +161,7 @@ Run the setup script to configure an Ubuntu server node:
 ```
 
 **What the setup script does:**
+
 - Sets hostname to `GRQ-<node_number>`
 - Updates `/etc/hosts` with hostname entry
 - Creates automated users:
@@ -184,6 +194,7 @@ After running either setup script, login as each automated user and run:
 ```
 
 This will:
+
 - Install Rust toolchain (macOS) or Deno and Rust (Ubuntu)
 - Generate SSH keys
 - Configure git
