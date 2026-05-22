@@ -20,7 +20,7 @@ pre-existing test suites, plus the new `per_user_password_test.sh`).
 
 `./quality.sh` output:
 
-```
+```text
 Pass: 28  Fail: 0
 [quality] all quality checks passed
 ```
