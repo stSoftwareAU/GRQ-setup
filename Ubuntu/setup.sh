@@ -15,7 +15,13 @@ cat << 'EOF'
 EOF
 
 BASE_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd -P "${BASE_DIR}/.." && pwd -P)"
 cd "${BASE_DIR}"
+
+# Supply-chain hardening (issue #16): pin every external installer to a
+# specific version and verify SHA-256 before executing.
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/lib/pinned_versions.sh"
 
 # Validate arguments
 if [[ -z "$1" || -z "$2" ]]; then
@@ -104,20 +110,60 @@ NODE_NUMBER=${NODE_NUMBER}
 
 echo "🔧 Setting up tools and environment for \$USERNAME..."
 
-# Install Deno if missing
+# Supply-chain hardening (issue #16): download installers to a temp file,
+# verify against the SHA-256 pinned by the GRQ-setup admin, and refuse to
+# execute on mismatch.
+_grq_verify_install() {
+  # _grq_verify_install <url> <expected_sha256> [installer args...]
+  local url="\$1" expected="\$2"
+  shift 2
+  local tmp
+  tmp=\$(mktemp -t grq-installer.XXXXXX)
+  echo "Fetching \$url"
+  if ! curl --proto '=https' --tlsv1.2 -fsSL "\$url" -o "\$tmp"; then
+    echo "ERROR: failed to download \$url" >&2
+    rm -f "\$tmp"
+    return 1
+  fi
+  local actual
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual=\$(sha256sum "\$tmp" | awk '{print \$1}')
+  else
+    actual=\$(shasum -a 256 "\$tmp" | awk '{print \$1}')
+  fi
+  if [[ "\$actual" != "\$expected" ]]; then
+    echo "ERROR: SHA-256 mismatch for \$url" >&2
+    echo "  expected: \$expected" >&2
+    echo "  actual:   \$actual" >&2
+    rm -f "\$tmp"
+    return 1
+  fi
+  sh "\$tmp" "\$@"
+  local rc=\$?
+  rm -f "\$tmp"
+  return \$rc
+}
+
+# Install Deno if missing (pinned, verified)
 if ! command -v deno &> /dev/null; then
   echo "Installing Deno..."
-  curl -fsSL https://deno.land/install.sh | sh
+  if ! _grq_verify_install "${DENO_INSTALL_URL}" "${DENO_INSTALL_SHA256}"; then
+    echo "ERROR: Deno installer failed pinned SHA-256 verification — aborting." >&2
+    exit 1
+  fi
   export PATH="\$HOME/.deno/bin:\$PATH"
   echo "Deno installed successfully"
 else
   echo "Deno already installed"
 fi
 
-# Install Rust if missing
+# Install Rust if missing (pinned, verified)
 if ! command -v rustc &> /dev/null; then
   echo "Installing Rust..."
-  curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  if ! _grq_verify_install "${RUSTUP_INSTALL_URL}" "${RUSTUP_INSTALL_SHA256}" -s -- -y; then
+    echo "ERROR: Rust installer failed pinned SHA-256 verification — aborting." >&2
+    exit 1
+  fi
   export PATH="\$HOME/.cargo/bin:\$PATH"
   echo "Rust installed successfully"
 else

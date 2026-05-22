@@ -2,8 +2,16 @@
 set -e
 
 BASE_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd -P "${BASE_DIR}/.." && pwd -P)"
 export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
 cd "${BASE_DIR}"
+
+# Supply-chain hardening (issue #16): pin every external installer to a
+# specific commit SHA / version and verify SHA-256 before executing.
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/lib/verify_installer.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/lib/pinned_versions.sh"
 
 # Validate arguments
 if [[ -z "$1" || -z "$2" || -z "$3" ]]; then
@@ -144,8 +152,16 @@ ensure_brew_available() {
     return
   fi
 
-  echo "Installing Homebrew..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  echo "Installing Homebrew (pinned commit ${HOMEBREW_INSTALL_SHA})..."
+  local brew_installer
+  brew_installer=$(mktemp -t brew-install.XXXXXX)
+  if ! download_and_verify "${HOMEBREW_INSTALL_URL}" "${HOMEBREW_INSTALL_SHA256}" "${brew_installer}"; then
+    echo "Refusing to install Homebrew: pinned SHA-256 verification failed." >&2
+    rm -f "${brew_installer}"
+    exit 1
+  fi
+  /bin/bash "${brew_installer}"
+  rm -f "${brew_installer}"
 
   # Add Homebrew to PATH for current session
   if [[ -f /opt/homebrew/bin/brew ]]; then
@@ -373,10 +389,47 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-# Install Rust toolchain if absent
+# Supply-chain hardening (issue #16): download installers to a temp file,
+# verify against the SHA-256 pinned by the GRQ-setup admin, and refuse to
+# execute on mismatch.
+_grq_verify_install() {
+  # _grq_verify_install <url> <expected_sha256> [installer args...]
+  local url="\$1" expected="\$2"
+  shift 2
+  local tmp
+  tmp=\$(mktemp -t grq-installer.XXXXXX)
+  echo "Fetching \$url"
+  if ! curl --proto '=https' --tlsv1.2 -fsSL "\$url" -o "\$tmp"; then
+    echo "ERROR: failed to download \$url" >&2
+    rm -f "\$tmp"
+    return 1
+  fi
+  local actual
+  if command -v shasum >/dev/null 2>&1; then
+    actual=\$(shasum -a 256 "\$tmp" | awk '{print \$1}')
+  else
+    actual=\$(sha256sum "\$tmp" | awk '{print \$1}')
+  fi
+  if [[ "\$actual" != "\$expected" ]]; then
+    echo "ERROR: SHA-256 mismatch for \$url" >&2
+    echo "  expected: \$expected" >&2
+    echo "  actual:   \$actual" >&2
+    rm -f "\$tmp"
+    return 1
+  fi
+  sh "\$tmp" "\$@"
+  local rc=\$?
+  rm -f "\$tmp"
+  return \$rc
+}
+
+# Install Rust toolchain if absent (pinned, verified)
 if ! command -v rustc >/dev/null 2>&1; then
   echo "Installing Rust toolchain for \$USERNAME..."
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  if ! _grq_verify_install "${RUSTUP_INSTALL_URL}" "${RUSTUP_INSTALL_SHA256}" -s -- -y; then
+    echo "ERROR: Rust installer failed pinned SHA-256 verification — aborting." >&2
+    exit 1
+  fi
   if [[ -f "\$HOME/.cargo/env" ]]; then
     # shellcheck disable=SC1091
     source "\$HOME/.cargo/env"
