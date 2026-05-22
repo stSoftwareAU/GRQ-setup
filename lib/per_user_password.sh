@@ -90,3 +90,19 @@ get_or_create_user_password() {
   # shellcheck disable=SC2086
   $GRQ_SUDO cat "$pwfile"
 }
+
+# ensure_user_password <username>
+# Issue #15: callers that delegate password handling to lib/grq_sysadm.sh
+# only need the per-user `.secret` file to exist on disk — they do not
+# need to read the password into a shell variable. This helper guarantees
+# the file is present (creating it on first call, like
+# get_or_create_user_password) without echoing the secret to stdout, so
+# the password never enters the caller's memory at all.
+ensure_user_password() {
+  local username="$1"
+  if [[ -z "$username" ]]; then
+    echo "ERROR: ensure_user_password requires a username" >&2
+    return 1
+  fi
+  get_or_create_user_password "$username" >/dev/null
+}
