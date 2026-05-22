@@ -11,18 +11,35 @@ cd "${BASE_DIR}"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/lib/pinned_versions.sh"
 
-# Validate arguments
-if [[ -z "$1" || -z "$2" || -z "$3" ]]; then
-  echo "Usage: $0 <username> <node_number> <automated_password>"
+# Per-account passwords (issue #18): each automated user gets its own
+# randomly generated password stored in a root-owned 0600 file under
+# /var/root/grq/passwords.
+export GRQ_PASSWORD_DIR="/var/root/grq/passwords"
+export GRQ_PASSWORD_OWNER="root:wheel"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/lib/per_user_password.sh"
+
+# Validate arguments. The third positional argument used to be a shared
+# <automated_password>; it is retained for backwards CLI compatibility
+# but is now ignored (see issue #18).
+if [[ -z "$1" || -z "$2" ]]; then
+  echo "Usage: $0 <username> <node_number> [ignored_password]"
   echo "  This script adds a user to an existing Mac setup"
   echo "  The daemon will run <username>.sh from the user's GRQ directory"
+  echo "  ignored_password: retained for backwards compatibility — ignored (issue #18)"
   exit 1
 fi
 
 USERNAME="$1"
 NODE_NUMBER="$2"
-AUTOMATED_PASSWORD="$3"
+AUTOMATED_PASSWORD_DEPRECATED="${3:-}"
 CURRENT_USER=$(whoami)
+
+if [[ -n "$AUTOMATED_PASSWORD_DEPRECATED" ]]; then
+  echo "NOTE: the <automated_password> positional argument is deprecated and ignored (issue #18)."
+  echo "      ${USERNAME}'s password is persisted at ${GRQ_PASSWORD_DIR}/${USERNAME}.secret"
+  echo "      (root-owned, 0600). Delete that file and rerun to rotate."
+fi
 
 echo "👤 Adding user '$USERNAME' to existing Mac setup..."
 
@@ -48,11 +65,24 @@ install_admin_known_hosts() {
 
 install_admin_known_hosts
 
+# Per-account passwords (issue #18): set up the password store and resolve
+# this user's persisted secret. We only call sysadminctl when we are
+# either creating the user fresh or when no persisted secret existed yet
+# (so reruns are idempotent — to rotate, delete the .secret file and
+# rerun).
+ensure_password_dir
+USER_PWFILE="${GRQ_PASSWORD_DIR}/${USERNAME}.secret"
+PWFILE_EXISTED="no"
+if [[ -f "$USER_PWFILE" ]] || sudo test -f "$USER_PWFILE"; then
+  PWFILE_EXISTED="yes"
+fi
+USER_PASSWORD=$(get_or_create_user_password "$USERNAME")
+
 # Create user or detect existing one
 USER_HOME=""
 if ! id -u "$USERNAME" &>/dev/null; then
   echo "Creating user $USERNAME"
-  sudo sysadminctl -addUser "$USERNAME" -fullName "Automated User" -password "$AUTOMATED_PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
+  sudo sysadminctl -addUser "$USERNAME" -fullName "Automated User" -password "$USER_PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
   sudo createhomedir -c -u "$USERNAME"
   USER_HOME="/Users/$USERNAME"
   echo "User $USERNAME created successfully"
@@ -64,25 +94,32 @@ else
     # Fallback method
     USER_HOME=$(eval echo ~"$USERNAME")
   fi
-  
+
   # Validate that we got a valid home directory
   if [[ -z "$USER_HOME" ]]; then
     echo "ERROR: Could not determine $USERNAME user's home directory"
     exit 1
   fi
-  
+
   echo "Detected $USERNAME home directory: $USER_HOME"
-  
+
   # Verify the home directory exists
   if [[ ! -d "$USER_HOME" ]]; then
     echo "WARNING: Home directory $USER_HOME does not exist or is not mounted"
     echo "         The daemon will be configured, but ensure the drive is mounted before use"
   fi
-  
-  # Update password in case it changed
-  sudo sysadminctl -resetPasswordFor "$USERNAME" -newPassword "$AUTOMATED_PASSWORD" -adminUser "$CURRENT_USER"
-  echo "Password updated for $USERNAME"
+
+  # First-rerun migration only: if the persisted secret was just created
+  # for an account that existed under the old shared-password regime,
+  # apply the freshly generated value. Subsequent reruns are no-ops.
+  if [[ "$PWFILE_EXISTED" == "no" ]]; then
+    sudo sysadminctl -resetPasswordFor "$USERNAME" -newPassword "$USER_PASSWORD" -adminUser "$CURRENT_USER"
+    echo "Per-user password initialised for $USERNAME (persisted at $USER_PWFILE)"
+  else
+    echo "Per-user password for $USERNAME already persisted — leaving account password unchanged"
+  fi
 fi
+unset USER_PASSWORD
 
 # Ensure logs directory exists in the actual home directory
 sudo -u "$USERNAME" mkdir -p "$USER_HOME/logs"

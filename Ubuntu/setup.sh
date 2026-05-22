@@ -23,18 +23,36 @@ cd "${BASE_DIR}"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/lib/pinned_versions.sh"
 
-# Validate arguments
-if [[ -z "$1" || -z "$2" ]]; then
-  echo "Usage: $0 <node_number> <automated_password> [create_elephant]"
+# Per-account passwords (issue #18): each automated user gets its own
+# randomly generated password stored in a root-owned 0600 file under
+# /var/lib/grq/passwords. A single shared password gave any one account
+# compromise full reach over all of them.
+export GRQ_PASSWORD_DIR="/var/lib/grq/passwords"
+export GRQ_PASSWORD_OWNER="root:root"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/lib/per_user_password.sh"
+
+# Validate arguments. The second positional argument used to be a single
+# shared <automated_password>; it is retained for backwards CLI
+# compatibility but is now ignored (see issue #18).
+if [[ -z "$1" ]]; then
+  echo "Usage: $0 <node_number> [ignored_password] [create_elephant]"
+  echo "  ignored_password: retained for backwards compatibility — ignored (issue #18)"
   echo "  create_elephant: optional 'true' to create elephant user for heavy lift tasks"
   exit 1
 fi
 
 NODE_NUMBER="$1"
-AUTOMATED_PASSWORD="$2"
-CREATE_ELEPHANT="$3"
+AUTOMATED_PASSWORD_DEPRECATED="${2:-}"
+CREATE_ELEPHANT="${3:-}"
 HOSTNAME="GRQ-${NODE_NUMBER}"
 CURRENT_USER=$(whoami)
+
+if [[ -n "$AUTOMATED_PASSWORD_DEPRECATED" ]]; then
+  echo "NOTE: the <automated_password> positional argument is deprecated and ignored (issue #18)."
+  echo "      Each automated user now has its own random password persisted in"
+  echo "      ${GRQ_PASSWORD_DIR}/<user>.secret (root-owned, 0600)."
+fi
 
 echo "🔧 Setting up GRQ Node ${NODE_NUMBER} (SAFE MODE)"
 
@@ -80,26 +98,52 @@ else
   echo "Hostname entry already exists in /etc/hosts"
 fi
 
-# Create automated users rocket and sloth (idempotent)
+# Per-account passwords (issue #18): make sure the password store exists
+# before any create_automated_user call asks for a per-user secret.
+ensure_password_dir
+
+# Create automated users rocket and sloth (idempotent). Each user gets
+# its own randomly generated password from get_or_create_user_password.
+# We only call chpasswd when the persisted .secret file is newly minted —
+# subsequent reruns leave the existing account password alone so the
+# script is idempotent. To rotate a password, delete the .secret file
+# under $GRQ_PASSWORD_DIR and rerun.
 create_automated_user() {
   local USERNAME=$1
   local FULLNAME=$2
 
+  local PWFILE="${GRQ_PASSWORD_DIR}/${USERNAME}.secret"
+  local PWFILE_EXISTED="no"
+  if sudo test -f "$PWFILE"; then
+    PWFILE_EXISTED="yes"
+  fi
+
+  local USER_PASSWORD
+  USER_PASSWORD=$(get_or_create_user_password "$USERNAME")
+
   if ! id -u "$USERNAME" &>/dev/null; then
     echo "Creating user $USERNAME"
     sudo useradd -m -s /bin/bash -c "$FULLNAME" "$USERNAME"
-    echo "$USERNAME:$AUTOMATED_PASSWORD" | sudo chpasswd
+    # New account — always apply the freshly generated per-user password.
+    echo "$USERNAME:$USER_PASSWORD" | sudo chpasswd
     # Remove from sudo group if they were added previously
     sudo deluser "$USERNAME" sudo 2>/dev/null || true
     echo "User $USERNAME created successfully (no sudo access)"
   else
     echo "User $USERNAME already exists"
-    # Update password in case it changed
-    echo "$USERNAME:$AUTOMATED_PASSWORD" | sudo chpasswd
+    if [[ "$PWFILE_EXISTED" == "no" ]]; then
+      # First-rerun migration from the old shared-password regime: the
+      # persisted secret was just created, so push it onto the existing
+      # account exactly once.
+      echo "$USERNAME:$USER_PASSWORD" | sudo chpasswd
+      echo "Per-user password initialised for $USERNAME (persisted at $PWFILE)"
+    else
+      echo "Per-user password for $USERNAME already persisted — leaving account password unchanged"
+    fi
     # Ensure they don't have sudo access
     sudo deluser "$USERNAME" sudo 2>/dev/null || true
-    echo "Password updated for $USERNAME (sudo access removed)"
   fi
+  unset USER_PASSWORD
 
   # Create logs directory (idempotent)
   sudo -u $USERNAME mkdir -p /home/$USERNAME/logs

@@ -17,27 +17,27 @@ Setup scripts for GRQ (ML Training) cluster nodes on macOS and Ubuntu.
 Run the primary setup script to configure a Mac Mini cluster node:
 
 ```bash
-~/src/GRQ-setup/MacOS/setup.sh <mode> <node_number> <automated_password> [create_elephant]
+~/src/GRQ-setup/MacOS/setup.sh <mode> <node_number> [ignored_password] [create_elephant]
 ```
 
 **Parameters:**
 
 - `mode`: `local` or `remote` - local mode sets static IP (`10.0.0.<node_number>`), remote mode uses DHCP
 - `node_number`: The node number (e.g., 21) - sets hostname to `GRQ-21`
-- `automated_password`: Password for automated users (rocket, sloth, optional elephant)
+- `ignored_password`: **Deprecated (issue #18).** Retained as a positional slot for backwards CLI compatibility; the value is ignored. Each automated user now has its own random password generated in-script and stored in `/var/root/grq/passwords/<user>.secret` (root-owned, mode `0600`). Pass `""` to skip it positionally.
 - `create_elephant`: Optional `true` to create elephant user for heavy lift tasks with large removable drives
 
 **Examples:**
 
 ```bash
 # Local setup with static IP (rocket and sloth only)
-~/src/GRQ-setup/MacOS/setup.sh local 21 "your_password"
+~/src/GRQ-setup/MacOS/setup.sh local 21 ""
 
 # Local setup with elephant user for heavy disk tasks
-~/src/GRQ-setup/MacOS/setup.sh local 21 "your_password" true
+~/src/GRQ-setup/MacOS/setup.sh local 21 "" true
 
 # Remote setup using DHCP
-~/src/GRQ-setup/MacOS/setup.sh remote 21 "your_password"
+~/src/GRQ-setup/MacOS/setup.sh remote 21 ""
 ```
 
 **What the setup script does:**
@@ -67,23 +67,23 @@ Run the primary setup script to configure a Mac Mini cluster node:
 To add a user to an existing Mac setup (useful for users with home directories on removable drives):
 
 ```bash
-~/src/GRQ-setup/MacOS/add-user.sh <username> <node_number> <automated_password>
+~/src/GRQ-setup/MacOS/add-user.sh <username> <node_number> [ignored_password]
 ```
 
 **Parameters:**
 
 - `username`: The username to create/add (e.g., "elephant", "worker")
 - `node_number`: The node number (e.g., 21)
-- `automated_password`: Password for the user
+- `ignored_password`: **Deprecated (issue #18).** Retained for backwards CLI compatibility; the value is ignored. The new user's password is generated in-script and stored at `/var/root/grq/passwords/<username>.secret` (root-owned, mode `0600`).
 
 **Examples:**
 
 ```bash
 # Add elephant user for heavy disk tasks
-~/src/GRQ-setup/MacOS/add-user.sh elephant 21 "your_password"
+~/src/GRQ-setup/MacOS/add-user.sh elephant 21
 
 # Add any other user
-~/src/GRQ-setup/MacOS/add-user.sh worker 21 "your_password"
+~/src/GRQ-setup/MacOS/add-user.sh worker 21
 ```
 
 **What this script does:**
@@ -141,23 +141,23 @@ These systems are designed to be **self-healing and ephemeral** — only syncing
 Run the setup script to configure an Ubuntu server node:
 
 ```bash
-~/src/GRQ-setup/Ubuntu/setup.sh <node_number> <automated_password> [create_elephant]
+~/src/GRQ-setup/Ubuntu/setup.sh <node_number> [ignored_password] [create_elephant]
 ```
 
 **Parameters:**
 
 - `node_number`: The node number (e.g., 21) - sets hostname to `GRQ-21`
-- `automated_password`: Password for automated users (rocket, sloth, optional elephant)
+- `ignored_password`: **Deprecated (issue #18).** Retained as a positional slot for backwards CLI compatibility; the value is ignored. Each automated user now has its own random password generated in-script and stored in `/var/lib/grq/passwords/<user>.secret` (root-owned, mode `0600`). Pass `""` to skip it positionally.
 - `create_elephant`: Optional `true` to create elephant user for heavy lift tasks
 
 **Examples:**
 
 ```bash
 # Standard setup (rocket and sloth only)
-~/src/GRQ-setup/Ubuntu/setup.sh 21 "your_password"
+~/src/GRQ-setup/Ubuntu/setup.sh 21
 
 # Setup with elephant user
-~/src/GRQ-setup/Ubuntu/setup.sh 21 "your_password" true
+~/src/GRQ-setup/Ubuntu/setup.sh 21 "" true
 ```
 
 **What the setup script does:**
@@ -242,6 +242,53 @@ To refresh a pinned hash:
 1. Read the upstream change (diff the new installer against the prior pinned version) and confirm it is benign.
 2. Compute the new SHA-256: `curl -fsSL <URL> | shasum -a 256` (macOS) or `| sha256sum` (Linux).
 3. Update the variable in `lib/pinned_versions.sh` in a PR alongside an audit summary. Never bump automatically.
+
+---
+
+## Per-account automated passwords
+
+Earlier revisions accepted a single `<automated_password>` on the command
+line and applied it verbatim to every automated user the script created
+(`rocket`, `sloth`, optional `elephant`). Disclosure of that password
+from any one channel — a leaked log line, a `chpasswd` argv observation,
+a backup of one user's shell history, a brute-force against any one
+account — handed the attacker every other automated account on the node
+(issue #18).
+
+The fix gives each automated user its own randomly generated password,
+created in-script the first time the user is provisioned and persisted
+in a root-owned `0600` file under a per-platform store:
+
+| Platform | Password store path                     | Ownership    |
+| -------- | --------------------------------------- | ------------ |
+| macOS    | `/var/root/grq/passwords/<user>.secret` | `root:wheel` |
+| Ubuntu   | `/var/lib/grq/passwords/<user>.secret`  | `root:root`  |
+
+The store directory itself is mode `0700` so unprivileged users on the
+host cannot enumerate which accounts have been provisioned. Passwords
+are 32 random bytes from `openssl rand -base64`.
+
+Reruns of the setup scripts are idempotent: an existing `.secret` file is
+left alone. To rotate a user's password, delete that file as root and
+rerun the setup script — a new random value will be generated and pushed
+onto the account.
+
+The shared `<automated_password>` positional argument is retained as a
+no-op slot in the CLI so existing callers do not break; pass an empty
+string (`""`) or any placeholder and a deprecation notice is printed.
+
+```mermaid
+flowchart LR
+    A[Setup script] --> B[ensure_password_dir<br/>creates root-owned 0700 dir]
+    B --> C{<user>.secret<br/>already exists?}
+    C -- yes --> D[Read existing password]
+    C -- no --> E[openssl rand -base64 32<br/>persist 0600 root-owned]
+    E --> D
+    D --> F[sysadminctl -addUser / chpasswd<br/>with per-user password]
+```
+
+The helper lives in [`lib/per_user_password.sh`](lib/per_user_password.sh)
+and is sourced by every parent setup script.
 
 ---
 

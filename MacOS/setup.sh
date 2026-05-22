@@ -13,18 +13,37 @@ source "${REPO_ROOT}/lib/verify_installer.sh"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/lib/pinned_versions.sh"
 
-# Validate arguments
-if [[ -z "$1" || -z "$2" || -z "$3" ]]; then
-  echo "Usage: $0 <mode> <node_number> <automated_password> [create_elephant]"
+# Per-account passwords (issue #18): each automated user gets its own
+# randomly generated password stored in a root-owned 0600 file under
+# /var/root/grq/passwords. A single shared password gave any one account
+# compromise full reach over all of them.
+export GRQ_PASSWORD_DIR="/var/root/grq/passwords"
+export GRQ_PASSWORD_OWNER="root:wheel"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/lib/per_user_password.sh"
+
+# Validate arguments. The third positional argument used to be a single
+# shared <automated_password>; it is retained for backwards CLI
+# compatibility but is now ignored (see issue #18). Passing any value
+# triggers a deprecation notice.
+if [[ -z "$1" || -z "$2" ]]; then
+  echo "Usage: $0 <mode> <node_number> [ignored_password] [create_elephant]"
   echo "  mode: 'local' or 'remote' - local sets static IP, remote uses DHCP"
+  echo "  ignored_password: retained for backwards compatibility — ignored (issue #18)"
   echo "  create_elephant: optional 'true' to create elephant user for heavy lift tasks"
   exit 1
 fi
 
 MODE="$1"
 NODE_NUMBER="$2"
-AUTOMATED_PASSWORD="$3"
-CREATE_ELEPHANT="$4"
+AUTOMATED_PASSWORD_DEPRECATED="${3:-}"
+CREATE_ELEPHANT="${4:-}"
+
+if [[ -n "$AUTOMATED_PASSWORD_DEPRECATED" ]]; then
+  echo "NOTE: the <automated_password> positional argument is deprecated and ignored (issue #18)."
+  echo "      Each automated user now has its own random password persisted in"
+  echo "      ${GRQ_PASSWORD_DIR}/<user>.secret (root-owned, 0600)."
+fi
 
 # Validate mode parameter
 if [[ "$MODE" != "local" && "$MODE" != "remote" ]]; then
@@ -249,14 +268,22 @@ install_admin_known_hosts() {
 
 install_admin_known_hosts
 
-# Create automated users rocket and sloth
+# Per-account passwords (issue #18): ensure the password directory exists
+# before any create_automated_user call asks for a per-user secret.
+ensure_password_dir
+
+# Create automated users rocket and sloth. Each user gets its own
+# randomly generated password from get_or_create_user_password.
 create_automated_user() {
   local USERNAME=$1
   local FULLNAME=$2
 
+  local USER_PASSWORD
+  USER_PASSWORD=$(get_or_create_user_password "$USERNAME")
+
   if ! id -u "$USERNAME" &>/dev/null; then
     echo "Creating user $USERNAME"
-    sudo sysadminctl -addUser "$USERNAME" -fullName "$FULLNAME" -password "$AUTOMATED_PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
+    sudo sysadminctl -addUser "$USERNAME" -fullName "$FULLNAME" -password "$USER_PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
     sudo createhomedir -c -u "$USERNAME"
   else
     echo "User $USERNAME already exists."
@@ -298,8 +325,16 @@ if [[ "$CREATE_ELEPHANT" == "true" ]]; then
       echo "         The daemon will be configured, but ensure the drive is mounted before use"
     fi
     
-    # Update password in case it changed
-    sudo sysadminctl -resetPasswordFor "elephant" -newPassword "$AUTOMATED_PASSWORD" -adminUser "$CURRENT_USER"
+    # Per-account password (issue #18): if the persisted secret file does
+    # not yet exist for elephant, create it now and apply to the existing
+    # user. If it already exists we leave the user's password untouched so
+    # reruns are idempotent — to rotate, delete the .secret file and
+    # rerun.
+    if [[ ! -f "${GRQ_PASSWORD_DIR}/elephant.secret" ]]; then
+      ELEPHANT_PASSWORD=$(get_or_create_user_password "elephant")
+      sudo sysadminctl -resetPasswordFor "elephant" -newPassword "$ELEPHANT_PASSWORD" -adminUser "$CURRENT_USER"
+      unset ELEPHANT_PASSWORD
+    fi
     # Ensure logs directory exists in the actual home directory
     sudo -u elephant mkdir -p "$ELEPHANT_HOME/logs"
   fi
