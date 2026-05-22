@@ -18,7 +18,7 @@ for f in \
     MacOS/setup.sh MacOS/add-user.sh \
     Ubuntu/setup.sh \
     lib/verify_installer.sh lib/pinned_versions.sh \
-    tests/verify_installer_test.sh tests/generated_user_setup_test.sh tests/heredoc_render_test.sh \
+    tests/verify_installer_test.sh tests/generated_user_setup_test.sh tests/heredoc_render_test.sh tests/ssh_tofu_test.sh \
     quality.sh; do
   if [[ -f "$f" ]]; then
     if ! bash -n "$f" < /dev/null; then
@@ -63,6 +63,11 @@ fi
 note "tests/heredoc_render_test.sh"
 if ! bash tests/heredoc_render_test.sh < /dev/null; then
   fail "heredoc_render_test.sh"
+fi
+
+note "tests/ssh_tofu_test.sh"
+if ! bash tests/ssh_tofu_test.sh < /dev/null; then
+  fail "ssh_tofu_test.sh"
 fi
 
 if (( RC == 0 )); then

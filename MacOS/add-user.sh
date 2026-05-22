@@ -26,6 +26,28 @@ CURRENT_USER=$(whoami)
 
 echo "👤 Adding user '$USERNAME' to existing Mac setup..."
 
+# SSH host-key TOFU hardening (issue #17): refresh /etc/ssh/ssh_known_hosts
+# from lib/admin_known_hosts so the new user's ~/setup.sh can verify the
+# admin hosts under StrictHostKeyChecking=yes.
+install_admin_known_hosts() {
+  local src="${REPO_ROOT}/lib/admin_known_hosts"
+  local dst="/etc/ssh/ssh_known_hosts"
+
+  if [[ ! -f "$src" ]]; then
+    echo "WARNING: $src not found — generated user setup script will fail-closed when it tries to ssh to admin hosts." >&2
+    return 0
+  fi
+
+  if ! grep -E -v '^[[:space:]]*(#|$)' "$src" >/dev/null 2>&1; then
+    echo "WARNING: $src contains no pinned host keys — populate it before the user runs ~/setup.sh." >&2
+  fi
+
+  echo "Installing admin known_hosts to $dst"
+  sudo install -m 0644 -o root -g wheel "$src" "$dst"
+}
+
+install_admin_known_hosts
+
 # Create user or detect existing one
 USER_HOME=""
 if ! id -u "$USERNAME" &>/dev/null; then
@@ -155,11 +177,15 @@ if [[ ! -f "\$HOME/.ssh/id_ed25519" ]]; then
   ssh-keygen -t ed25519 -f "\$HOME/.ssh/id_ed25519" -N "" -C "\${USERNAME}-\${NODE_NUMBER}@lecklogic.com"
 fi
 
-# Push SSH key to admin
-ssh-copy-id -f nigel@10.0.0.11
+# Push SSH key to admin under strict host-key checking (issue #17).
+# /etc/ssh/ssh_known_hosts was pre-populated by the provisioning script
+# from lib/admin_known_hosts. Drop ssh-copy-id -f so any future
+# fingerprint change is surfaced instead of silently overwritten.
+SSH_STRICT_OPTS=( -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts )
+ssh-copy-id "\${SSH_STRICT_OPTS[@]}" nigel@10.0.0.11
 echo "verify host"
-ssh nigel@10.0.0.11 hostname
-ssh nigel@10.0.0.89 hostname
+ssh "\${SSH_STRICT_OPTS[@]}" nigel@10.0.0.11 hostname
+ssh "\${SSH_STRICT_OPTS[@]}" nigel@10.0.0.89 hostname
 
 git config --global user.email "\${USERNAME}-\${NODE_NUMBER}@lecklogic.com"
 git config --global user.name "\${USERNAME} \${NODE_NUMBER}"

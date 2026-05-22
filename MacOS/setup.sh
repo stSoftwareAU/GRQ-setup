@@ -224,6 +224,31 @@ ensure_aws_cli_available() {
 
 ensure_aws_cli_available
 
+# SSH host-key TOFU hardening (issue #17): copy the pre-distributed
+# admin known_hosts file into /etc/ssh/ssh_known_hosts so every newly
+# provisioned user can verify the admin hosts (10.0.0.11, 10.0.0.89)
+# under StrictHostKeyChecking=yes instead of blindly accepting whatever
+# key is on the wire on first connection.
+install_admin_known_hosts() {
+  local src="${REPO_ROOT}/lib/admin_known_hosts"
+  local dst="/etc/ssh/ssh_known_hosts"
+
+  if [[ ! -f "$src" ]]; then
+    echo "WARNING: $src not found — generated user setup scripts will fail-closed when they try to ssh to admin hosts." >&2
+    return 0
+  fi
+
+  # Only the comment-free entries count as "real" pinned host keys.
+  if ! grep -E -v '^[[:space:]]*(#|$)' "$src" >/dev/null 2>&1; then
+    echo "WARNING: $src contains no pinned host keys — populate it before users run ~/setup.sh." >&2
+  fi
+
+  echo "Installing admin known_hosts to $dst"
+  sudo install -m 0644 -o root -g wheel "$src" "$dst"
+}
+
+install_admin_known_hosts
+
 # Create automated users rocket and sloth
 create_automated_user() {
   local USERNAME=$1
@@ -455,11 +480,15 @@ if [[ ! -f "\$HOME/.ssh/id_ed25519" ]]; then
   ssh-keygen -t ed25519 -f "\$HOME/.ssh/id_ed25519" -N "" -C "\${USERNAME}-\${NODE_NUMBER}@lecklogic.com"
 fi
 
-# Push SSH key to admin
-ssh-copy-id -f nigel@10.0.0.11
+# Push SSH key to admin under strict host-key checking (issue #17).
+# /etc/ssh/ssh_known_hosts was pre-populated by the provisioning script
+# from lib/admin_known_hosts. Drop ssh-copy-id -f so any future
+# fingerprint change is surfaced instead of silently overwritten.
+SSH_STRICT_OPTS=( -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts )
+ssh-copy-id "\${SSH_STRICT_OPTS[@]}" nigel@10.0.0.11
 echo "verify host"
-ssh nigel@10.0.0.11 hostname
-ssh nigel@10.0.0.89 hostname
+ssh "\${SSH_STRICT_OPTS[@]}" nigel@10.0.0.11 hostname
+ssh "\${SSH_STRICT_OPTS[@]}" nigel@10.0.0.89 hostname
 
 git config --global user.email "\${USERNAME}-\${NODE_NUMBER}@lecklogic.com"
 git config --global user.name "\${USERNAME} \${NODE_NUMBER}"

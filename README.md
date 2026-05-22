@@ -242,3 +242,50 @@ To refresh a pinned hash:
 1. Read the upstream change (diff the new installer against the prior pinned version) and confirm it is benign.
 2. Compute the new SHA-256: `curl -fsSL <URL> | shasum -a 256` (macOS) or `| sha256sum` (Linux).
 3. Update the variable in `lib/pinned_versions.sh` in a PR alongside an audit summary. Never bump automatically.
+
+---
+
+## SSH host-key pinning for the admin LAN
+
+Every provisioned node bootstraps onto the GRQ admin LAN by SSHing to
+`10.0.0.11` and `10.0.0.89`. Earlier revisions accepted the host key on first
+connection via TOFU — an attacker who ARP-spoofed those addresses on the
+`10.0.0.0/24` subnet could intercept the bootstrap (issue #17).
+
+The fix pre-distributes a verified host-key list in
+[`lib/admin_known_hosts`](lib/admin_known_hosts). Each parent setup script
+copies it to `/etc/ssh/ssh_known_hosts` (root-owned, `0644`), and the
+generated per-user `~/setup.sh` calls `ssh-copy-id` and `ssh` with:
+
+```bash
+-o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts
+```
+
+The `-f` flag was also dropped from `ssh-copy-id` so any future host-key
+change is surfaced as an error instead of silently overwriting the pin.
+
+### Populating `lib/admin_known_hosts` (one-time, by the admin)
+
+1. From the admin console you physically trust, run on each admin host:
+
+   ```bash
+   for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done
+   ```
+
+   Record each printed **fingerprint** out of band (paper, sealed channel).
+
+2. From a trusted machine on the LAN, run:
+
+   ```bash
+   ssh-keyscan -t ed25519,rsa 10.0.0.11 10.0.0.89
+   ```
+
+   Pipe the output through `ssh-keygen -lf -` and compare each fingerprint
+   against the value recorded in step 1.
+
+3. Only if every fingerprint matches, paste the `ssh-keyscan` output into
+   `lib/admin_known_hosts`, replacing the placeholder lines. Commit the
+   change in a dedicated PR with an audit summary in the body.
+
+A mismatch is a potential MITM. Stop, investigate the admin hosts, and
+do not re-pin until the discrepancy is explained.

@@ -1,0 +1,37 @@
+# lib/admin_known_hosts
+#
+# Pre-distributed SSH host keys for the GRQ LAN admin hosts (issue #17).
+# This file is copied to /etc/ssh/ssh_known_hosts on every newly provisioned
+# node so that the per-user ~/setup.sh can connect to 10.0.0.11 and 10.0.0.89
+# under StrictHostKeyChecking=yes — no TOFU prompt, no LAN ARP-spoof window.
+#
+# How to (re)populate this file safely:
+#
+#   1. Out-of-band, from the admin console you physically trust, run:
+#         ssh-keyscan -t ed25519,rsa 10.0.0.11 10.0.0.89
+#      Pipe the output through `ssh-keygen -lf -` to print the fingerprints.
+#
+#   2. Compare each fingerprint against what the admin host *itself* reports
+#      when you log into its console directly:
+#         for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done
+#
+#   3. Only after each fingerprint matches the admin-host-reported value,
+#      paste the `ssh-keyscan` output below, replacing any earlier lines.
+#
+#   4. Commit the change in a dedicated PR with the audit summary in the body.
+#      Treat any later fingerprint mismatch as a potential MITM and
+#      investigate before re-pinning.
+#
+# Format: standard OpenSSH known_hosts lines —
+#   <hostname-or-ip> <key-type> <base64-key>
+#
+# Lines beginning with `#` are comments and are ignored by sshd / ssh.
+# Until the maintainer pins real host keys here, generated user setup
+# scripts will fail-closed with StrictHostKeyChecking=yes rather than
+# silently accept whatever key is on the wire.
+#
+# ----------------------------------------------------------------------------
+# REPLACE THE LINES BELOW WITH `ssh-keyscan` OUTPUT FOR THE ADMIN HOSTS:
+# 10.0.0.11 ssh-ed25519 AAAA...    # nigel@admin-primary
+# 10.0.0.89 ssh-ed25519 AAAA...    # nigel@admin-secondary
+# ----------------------------------------------------------------------------
