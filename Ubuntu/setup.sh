@@ -38,6 +38,30 @@ CURRENT_USER=$(whoami)
 
 echo "🔧 Setting up GRQ Node ${NODE_NUMBER} (SAFE MODE)"
 
+# SSH host-key TOFU hardening (issue #17): copy the pre-distributed
+# admin known_hosts file into /etc/ssh/ssh_known_hosts so every newly
+# provisioned user can verify the admin hosts (10.0.0.11, 10.0.0.89)
+# under StrictHostKeyChecking=yes instead of blindly accepting whatever
+# key is on the wire on first connection.
+install_admin_known_hosts() {
+  local src="${REPO_ROOT}/lib/admin_known_hosts"
+  local dst="/etc/ssh/ssh_known_hosts"
+
+  if [[ ! -f "$src" ]]; then
+    echo "WARNING: $src not found — generated user setup scripts will fail-closed when they try to ssh to admin hosts." >&2
+    return 0
+  fi
+
+  if ! grep -E -v '^[[:space:]]*(#|$)' "$src" >/dev/null 2>&1; then
+    echo "WARNING: $src contains no pinned host keys — populate it before users run ~/setup.sh." >&2
+  fi
+
+  echo "Installing admin known_hosts to $dst"
+  sudo install -m 0644 -o root -g root "$src" "$dst"
+}
+
+install_admin_known_hosts
+
 # Set hostname (idempotent)
 echo "Setting hostname to ${HOSTNAME}"
 CURRENT_HOSTNAME=$(hostname)
@@ -96,8 +120,12 @@ create_user_setup_script() {
   local USERNAME=$1
   local SCRIPT_PATH="/home/$USERNAME/setup.sh"
 
-  # Check if script already exists and is up to date
-  if [[ -f "$SCRIPT_PATH" ]] && grep -q "NODE_NUMBER=${NODE_NUMBER}" "$SCRIPT_PATH"; then
+  # Check if script already exists and is up to date. Issue #17 added the
+  # StrictHostKeyChecking marker, so any script written before that fix is
+  # treated as stale and regenerated.
+  if [[ -f "$SCRIPT_PATH" ]] \
+      && grep -q "NODE_NUMBER=${NODE_NUMBER}" "$SCRIPT_PATH" \
+      && grep -q "StrictHostKeyChecking=yes" "$SCRIPT_PATH"; then
     echo "Setup script for $USERNAME already exists and is current"
   else
     echo "Creating/updating setup script for $USERNAME"
@@ -199,12 +227,16 @@ else
   echo "SSH key already exists"
 fi
 
-# Push SSH key to admin
+# Push SSH key to admin under strict host-key checking (issue #17).
+# /etc/ssh/ssh_known_hosts was pre-populated by the provisioning script
+# from lib/admin_known_hosts. Drop ssh-copy-id -f so any future
+# fingerprint change is surfaced instead of silently overwritten.
 echo "Setting up SSH access to admin servers..."
-ssh-copy-id -f nigel@10.0.0.11
+SSH_STRICT_OPTS=( -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts )
+ssh-copy-id "\${SSH_STRICT_OPTS[@]}" nigel@10.0.0.11
 echo "Verifying host connections..."
-ssh nigel@10.0.0.11 hostname
-ssh nigel@10.0.0.89 hostname
+ssh "\${SSH_STRICT_OPTS[@]}" nigel@10.0.0.11 hostname
+ssh "\${SSH_STRICT_OPTS[@]}" nigel@10.0.0.89 hostname
 
 # Configure git
 git config --global user.email "\${USERNAME}-\${NODE_NUMBER}@lecklogic.com"
