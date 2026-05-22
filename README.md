@@ -202,3 +202,43 @@ This will:
 - Set up environment variables
 
 **Important:** You'll need to add the SSH public key to GitHub when prompted during the setup script execution.
+
+---
+
+## Supply-chain hardening for external installers
+
+Every external installer this repository fetches at provisioning time is now
+pinned to a specific commit SHA / version and SHA-256-verified before
+execution (issue #16). The previous `curl ... | sh` pattern was vulnerable to
+any transient compromise of the upstream installer or the TLS path — a single
+attacker-controlled byte would run with full admin privileges on the GRQ node.
+
+Pinned installers:
+
+| Installer | Pinned by | Verified |
+| --- | --- | --- |
+| Homebrew (`Homebrew/install`) | commit SHA in URL | SHA-256 of `install.sh` |
+| rustup (`sh.rustup.rs`) | SHA-256 of installer script | yes |
+| Deno (`deno.land/install.sh`) | SHA-256 of installer script | yes |
+
+All pinned hashes live in [`lib/pinned_versions.sh`](lib/pinned_versions.sh)
+and the verification helper in [`lib/verify_installer.sh`](lib/verify_installer.sh).
+The per-user `~/setup.sh` scripts generated for `rocket` / `sloth` /
+`elephant` carry an inline copy of the verifier so they remain self-contained
+when the user has no checkout of `GRQ-setup`.
+
+```mermaid
+flowchart LR
+    A[Setup script] --> B[Read pinned URL + SHA-256<br/>from lib/pinned_versions.sh]
+    B --> C[curl --proto '=https' --tlsv1.2<br/>download to temp file]
+    C --> D{Computed SHA-256<br/>matches pinned?}
+    D -- no --> E[Delete temp file<br/>Abort with error]
+    D -- yes --> F[Execute installer<br/>from temp file]
+    F --> G[Remove temp file]
+```
+
+To refresh a pinned hash:
+
+1. Read the upstream change (diff the new installer against the prior pinned version) and confirm it is benign.
+2. Compute the new SHA-256: `curl -fsSL <URL> | shasum -a 256` (macOS) or `| sha256sum` (Linux).
+3. Update the variable in `lib/pinned_versions.sh` in a PR alongside an audit summary. Never bump automatically.
