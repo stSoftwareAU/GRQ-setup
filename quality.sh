@@ -17,8 +17,8 @@ note "bash -n on shell sources"
 for f in \
     MacOS/setup.sh MacOS/add-user.sh \
     Ubuntu/setup.sh \
-    lib/verify_installer.sh lib/pinned_versions.sh lib/per_user_password.sh lib/grq_sysadm.sh \
-    tests/verify_installer_test.sh tests/generated_user_setup_test.sh tests/heredoc_render_test.sh tests/ssh_tofu_test.sh tests/per_user_password_test.sh tests/sysadm_argv_test.sh \
+    lib/verify_installer.sh lib/pinned_versions.sh lib/per_user_password.sh lib/grq_sysadm.sh lib/input_validation.sh \
+    tests/verify_installer_test.sh tests/generated_user_setup_test.sh tests/heredoc_render_test.sh tests/ssh_tofu_test.sh tests/per_user_password_test.sh tests/sysadm_argv_test.sh tests/input_validation_test.sh \
     quality.sh; do
   if [[ -f "$f" ]]; then
     if ! bash -n "$f" < /dev/null; then
@@ -31,7 +31,7 @@ done
 if command -v shellcheck >/dev/null 2>&1; then
   note "shellcheck (errors only)"
   if ! shellcheck --severity=error -x \
-        lib/verify_installer.sh lib/pinned_versions.sh lib/per_user_password.sh lib/grq_sysadm.sh \
+        lib/verify_installer.sh lib/pinned_versions.sh lib/per_user_password.sh lib/grq_sysadm.sh lib/input_validation.sh \
         MacOS/setup.sh MacOS/add-user.sh Ubuntu/setup.sh < /dev/null; then
     fail "shellcheck reported errors"
   fi
@@ -78,6 +78,11 @@ fi
 note "tests/sysadm_argv_test.sh"
 if ! bash tests/sysadm_argv_test.sh < /dev/null; then
   fail "sysadm_argv_test.sh"
+fi
+
+note "tests/input_validation_test.sh"
+if ! bash tests/input_validation_test.sh < /dev/null; then
+  fail "input_validation_test.sh"
 fi
 
 if (( RC == 0 )); then

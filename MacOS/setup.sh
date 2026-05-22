@@ -22,6 +22,12 @@ export GRQ_PASSWORD_OWNER="root:wheel"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/lib/per_user_password.sh"
 
+# Input validation (issue #19): xml_escape() is used below to guard the
+# ELEPHANT_HOME interpolation inside the elephant LaunchDaemons plist
+# heredoc; validate_node_number is applied to $NODE_NUMBER below.
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/lib/input_validation.sh"
+
 # Validate arguments. The third positional argument used to be a single
 # shared <automated_password>; it is retained for backwards CLI
 # compatibility but is now ignored (see issue #18). Passing any value
@@ -38,6 +44,14 @@ MODE="$1"
 NODE_NUMBER="$2"
 AUTOMATED_PASSWORD_DEPRECATED="${3:-}"
 CREATE_ELEPHANT="${4:-}"
+
+# Issue #19: $NODE_NUMBER is interpolated into the generated per-user
+# setup script and into git config; reject anything outside ^[0-9]+$
+# before it leaves this script.
+if ! validate_node_number "$NODE_NUMBER"; then
+  echo "Invalid node number '$NODE_NUMBER' — refusing to proceed." >&2
+  exit 1
+fi
 
 if [[ -n "$AUTOMATED_PASSWORD_DEPRECATED" ]]; then
   echo "NOTE: the <automated_password> positional argument is deprecated and ignored (issue #18)."
@@ -389,6 +403,16 @@ if [[ "$CREATE_ELEPHANT" == "true" ]]; then
   echo "Installing Elephant Daemon..."
   echo "Using detected home directory: $ELEPHANT_HOME"
   
+  # Issue #19: ELEPHANT_HOME comes from `dscl . -read /Users/elephant
+  # NFSHomeDirectory`, which is normally trustworthy but is mutable by a
+  # root-equivalent caller. XML-escape it before interpolating into the
+  # plist body so a path containing &/<>/quotes cannot smuggle extra
+  # plist keys (e.g. overriding UserName to root).
+  XE_ELEPHANT_HOME="$(xml_escape "$ELEPHANT_HOME")"
+  XE_ELEPHANT_PROGRAM="$(xml_escape "${ELEPHANT_HOME}/GRQ/elephant.sh")"
+  XE_ELEPHANT_STDOUT="$(xml_escape "${ELEPHANT_HOME}/logs/elephant.out.log")"
+  XE_ELEPHANT_STDERR="$(xml_escape "${ELEPHANT_HOME}/logs/elephant.err.log")"
+
   # Generate daemon plist with actual home directory paths (supports removable drives)
   sudo tee /Library/LaunchDaemons/com.lecklogic.heavylifttask.plist > /dev/null <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -399,7 +423,7 @@ if [[ "$CREATE_ELEPHANT" == "true" ]]; then
     <string>com.lecklogic.heavylifttask</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${ELEPHANT_HOME}/GRQ/elephant.sh</string>
+        <string>${XE_ELEPHANT_PROGRAM}</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -410,11 +434,11 @@ if [[ "$CREATE_ELEPHANT" == "true" ]]; then
     <key>UserName</key>
     <string>elephant</string>
     <key>WorkingDirectory</key>
-    <string>${ELEPHANT_HOME}</string>
+    <string>${XE_ELEPHANT_HOME}</string>
     <key>StandardOutPath</key>
-    <string>${ELEPHANT_HOME}/logs/elephant.out.log</string>
+    <string>${XE_ELEPHANT_STDOUT}</string>
     <key>StandardErrorPath</key>
-    <string>${ELEPHANT_HOME}/logs/elephant.err.log</string>
+    <string>${XE_ELEPHANT_STDERR}</string>
 </dict>
 </plist>
 EOF
