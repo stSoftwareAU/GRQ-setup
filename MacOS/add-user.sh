@@ -19,6 +19,13 @@ export GRQ_PASSWORD_OWNER="root:wheel"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/lib/per_user_password.sh"
 
+# Input validation (issue #19): validate the CLI args against conservative
+# allowlists before they are interpolated into a LaunchDaemons plist path
+# or XML body, and expose xml_escape() for any value that must end up
+# inside <string>…</string> in the plist heredoc below.
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/lib/input_validation.sh"
+
 # Validate arguments. The third positional argument used to be a shared
 # <automated_password>; it is retained for backwards CLI compatibility
 # but is now ignored (see issue #18).
@@ -34,6 +41,21 @@ USERNAME="$1"
 NODE_NUMBER="$2"
 AUTOMATED_PASSWORD_DEPRECATED="${3:-}"
 CURRENT_USER=$(whoami)
+
+# Issue #19: fail-closed on attacker-controlled CLI args before any sudo /
+# sysadminctl / `tee /Library/LaunchDaemons/…` call. validate_username
+# accepts ^[a-z][a-z0-9_-]{0,30}$; validate_node_number accepts ^[0-9]+$.
+# Any path-traversal sequence, XML metacharacter, or shell metacharacter
+# in $USERNAME (e.g. '../../etc/cron.d/x' or '</string><key>UserName…')
+# is rejected here.
+if ! validate_username "$USERNAME"; then
+  echo "Invalid username '$USERNAME' — refusing to proceed." >&2
+  exit 1
+fi
+if ! validate_node_number "$NODE_NUMBER"; then
+  echo "Invalid node number '$NODE_NUMBER' — refusing to proceed." >&2
+  exit 1
+fi
 
 if [[ -n "$AUTOMATED_PASSWORD_DEPRECATED" ]]; then
   echo "NOTE: the <automated_password> positional argument is deprecated and ignored (issue #18)."
@@ -269,6 +291,29 @@ DAEMON_LABEL="com.lecklogic.${USERNAME}task"
 DAEMON_PLIST="/Library/LaunchDaemons/${DAEMON_LABEL}.plist"
 SCRIPT_NAME="${USERNAME}.sh"
 
+# Issue #19 (defence in depth): even though $USERNAME is now allowlist-
+# validated above, refuse to write the plist if its canonical path is
+# not a direct child of /Library/LaunchDaemons/. This catches future
+# regressions (e.g. someone widening the allowlist) and any tampering of
+# the path components before we reach `sudo tee`.
+DAEMON_PLIST_REAL="$(/usr/bin/python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$DAEMON_PLIST" 2>/dev/null || echo "$DAEMON_PLIST")"
+if [[ "$DAEMON_PLIST_REAL" != "/Library/LaunchDaemons/${DAEMON_LABEL}.plist" ]]; then
+  echo "ERROR: refusing to write daemon plist outside /Library/LaunchDaemons/ (got '$DAEMON_PLIST_REAL')" >&2
+  exit 1
+fi
+
+# Issue #19: XML-escape every interpolated value going into the plist
+# body. $USERNAME is already restricted to ^[a-z][a-z0-9_-]{0,30}$ so it
+# is XML-safe today, but USER_HOME and the derived path strings come
+# from dscl/eval and are not pinned by the allowlist; escaping them
+# closes the XML-injection vector noted in the issue body.
+XE_LABEL="$(xml_escape "$DAEMON_LABEL")"
+XE_USERNAME="$(xml_escape "$USERNAME")"
+XE_USER_HOME="$(xml_escape "$USER_HOME")"
+XE_PROGRAM="$(xml_escape "${USER_HOME}/GRQ/${SCRIPT_NAME}")"
+XE_STDOUT="$(xml_escape "${USER_HOME}/logs/${USERNAME}.out.log")"
+XE_STDERR="$(xml_escape "${USER_HOME}/logs/${USERNAME}.err.log")"
+
 # Generate daemon plist with actual home directory paths (supports removable drives)
 sudo tee "$DAEMON_PLIST" > /dev/null <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -276,10 +321,10 @@ sudo tee "$DAEMON_PLIST" > /dev/null <<EOF
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>${DAEMON_LABEL}</string>
+    <string>${XE_LABEL}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${USER_HOME}/GRQ/${SCRIPT_NAME}</string>
+        <string>${XE_PROGRAM}</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -288,13 +333,13 @@ sudo tee "$DAEMON_PLIST" > /dev/null <<EOF
     <key>Nice</key>
     <integer>20</integer> <!-- Low CPU priority for heavy disk I/O tasks -->
     <key>UserName</key>
-    <string>${USERNAME}</string>
+    <string>${XE_USERNAME}</string>
     <key>WorkingDirectory</key>
-    <string>${USER_HOME}</string>
+    <string>${XE_USER_HOME}</string>
     <key>StandardOutPath</key>
-    <string>${USER_HOME}/logs/${USERNAME}.out.log</string>
+    <string>${XE_STDOUT}</string>
     <key>StandardErrorPath</key>
-    <string>${USER_HOME}/logs/${USERNAME}.err.log</string>
+    <string>${XE_STDERR}</string>
 </dict>
 </plist>
 EOF
