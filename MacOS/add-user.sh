@@ -70,19 +70,24 @@ install_admin_known_hosts
 # either creating the user fresh or when no persisted secret existed yet
 # (so reruns are idempotent — to rotate, delete the .secret file and
 # rerun).
+# Issue #15: lib/grq_sysadm.sh reads the persisted .secret file directly
+# as root and feeds the password to sysadminctl over a pty. The password
+# is never on argv or in this script's variables.
 ensure_password_dir
 USER_PWFILE="${GRQ_PASSWORD_DIR}/${USERNAME}.secret"
 PWFILE_EXISTED="no"
 if [[ -f "$USER_PWFILE" ]] || sudo test -f "$USER_PWFILE"; then
   PWFILE_EXISTED="yes"
 fi
-USER_PASSWORD=$(get_or_create_user_password "$USERNAME")
+ensure_user_password "$USERNAME"
 
 # Create user or detect existing one
 USER_HOME=""
 if ! id -u "$USERNAME" &>/dev/null; then
   echo "Creating user $USERNAME"
-  sudo sysadminctl -addUser "$USERNAME" -fullName "Automated User" -password "$USER_PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
+  sudo "${REPO_ROOT}/lib/grq_sysadm.sh" \
+    --password-file "$USER_PWFILE" \
+    add "$USERNAME" "Automated User" "/Users/$USERNAME" "$CURRENT_USER"
   sudo createhomedir -c -u "$USERNAME"
   USER_HOME="/Users/$USERNAME"
   echo "User $USERNAME created successfully"
@@ -112,14 +117,16 @@ else
   # First-rerun migration only: if the persisted secret was just created
   # for an account that existed under the old shared-password regime,
   # apply the freshly generated value. Subsequent reruns are no-ops.
+  # Issue #15: helper feeds the password over a pty, not argv.
   if [[ "$PWFILE_EXISTED" == "no" ]]; then
-    sudo sysadminctl -resetPasswordFor "$USERNAME" -newPassword "$USER_PASSWORD" -adminUser "$CURRENT_USER"
+    sudo "${REPO_ROOT}/lib/grq_sysadm.sh" \
+      --password-file "$USER_PWFILE" \
+      reset "$USERNAME" "$CURRENT_USER"
     echo "Per-user password initialised for $USERNAME (persisted at $USER_PWFILE)"
   else
     echo "Per-user password for $USERNAME already persisted — leaving account password unchanged"
   fi
 fi
-unset USER_PASSWORD
 
 # Ensure logs directory exists in the actual home directory
 sudo -u "$USERNAME" mkdir -p "$USER_HOME/logs"

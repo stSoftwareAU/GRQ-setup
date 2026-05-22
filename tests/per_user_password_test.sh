@@ -142,8 +142,19 @@ for parent in "$MAC_SETUP" "$MAC_ADD" "$UBU_SETUP"; do
   fi
   assert_contains "$parent" 'lib/per_user_password.sh' \
     "$label sources lib/per_user_password.sh"
-  assert_contains "$parent" 'get_or_create_user_password' \
-    "$label calls get_or_create_user_password"
+  # Issue #15 update: the macOS scripts no longer need the password as a
+  # bash string and so use the new `ensure_user_password` wrapper, which
+  # internally calls `get_or_create_user_password` (defined in
+  # lib/per_user_password.sh) but discards the stdout — the password
+  # stays on disk and is only read by lib/grq_sysadm.sh running as root.
+  # Ubuntu still calls get_or_create_user_password directly because the
+  # `chpasswd` pipe path consumes the password value. So accept either.
+  if grep -F -- 'get_or_create_user_password' "$parent" >/dev/null 2>&1 \
+      || grep -F -- 'ensure_user_password' "$parent" >/dev/null 2>&1; then
+    ok "$label calls a per-user-password helper (get_or_create_user_password / ensure_user_password)"
+  else
+    fail "$label calls a per-user-password helper (get_or_create_user_password / ensure_user_password)"
+  fi
   assert_not_contains "$parent" '-password "$AUTOMATED_PASSWORD"' \
     "$label no longer hands shared \$AUTOMATED_PASSWORD to sysadminctl -addUser"
   assert_not_contains "$parent" '-newPassword "$AUTOMATED_PASSWORD"' \

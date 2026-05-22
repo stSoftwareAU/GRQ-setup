@@ -273,17 +273,23 @@ install_admin_known_hosts
 ensure_password_dir
 
 # Create automated users rocket and sloth. Each user gets its own
-# randomly generated password from get_or_create_user_password.
+# randomly generated password persisted in
+# ${GRQ_PASSWORD_DIR}/<user>.secret. Issue #15: the password is fed to
+# sysadminctl over a pty by lib/grq_sysadm.sh — never via argv (which is
+# world-readable through ps / /proc/<pid>/cmdline).
 create_automated_user() {
   local USERNAME=$1
   local FULLNAME=$2
 
-  local USER_PASSWORD
-  USER_PASSWORD=$(get_or_create_user_password "$USERNAME")
+  # Materialise the persisted secret on disk without reading it into a
+  # bash variable here. lib/grq_sysadm.sh reads it directly as root.
+  ensure_user_password "$USERNAME"
 
   if ! id -u "$USERNAME" &>/dev/null; then
     echo "Creating user $USERNAME"
-    sudo sysadminctl -addUser "$USERNAME" -fullName "$FULLNAME" -password "$USER_PASSWORD" -home "/Users/$USERNAME" -adminUser "$CURRENT_USER"
+    sudo "${REPO_ROOT}/lib/grq_sysadm.sh" \
+      --password-file "${GRQ_PASSWORD_DIR}/${USERNAME}.secret" \
+      add "$USERNAME" "$FULLNAME" "/Users/$USERNAME" "$CURRENT_USER"
     sudo createhomedir -c -u "$USERNAME"
   else
     echo "User $USERNAME already exists."
@@ -330,10 +336,13 @@ if [[ "$CREATE_ELEPHANT" == "true" ]]; then
     # user. If it already exists we leave the user's password untouched so
     # reruns are idempotent — to rotate, delete the .secret file and
     # rerun.
+    # Issue #15: the password is fed to sysadminctl over a pty via
+    # lib/grq_sysadm.sh, never on argv.
     if [[ ! -f "${GRQ_PASSWORD_DIR}/elephant.secret" ]]; then
-      ELEPHANT_PASSWORD=$(get_or_create_user_password "elephant")
-      sudo sysadminctl -resetPasswordFor "elephant" -newPassword "$ELEPHANT_PASSWORD" -adminUser "$CURRENT_USER"
-      unset ELEPHANT_PASSWORD
+      ensure_user_password "elephant"
+      sudo "${REPO_ROOT}/lib/grq_sysadm.sh" \
+        --password-file "${GRQ_PASSWORD_DIR}/elephant.secret" \
+        reset "elephant" "$CURRENT_USER"
     fi
     # Ensure logs directory exists in the actual home directory
     sudo -u elephant mkdir -p "$ELEPHANT_HOME/logs"

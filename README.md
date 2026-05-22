@@ -292,6 +292,59 @@ and is sourced by every parent setup script.
 
 ---
 
+## sysadminctl password handling without argv exposure
+
+Even with per-user random passwords (above), the macOS provisioning path
+had a second leak: `sudo sysadminctl -addUser ... -password "$pw" ...`
+and `sudo sysadminctl -resetPasswordFor ... -newPassword "$pw" ...` bake
+the password into the spawned process's argv vector. On macOS and Linux
+the full argv of every running process is readable by every local user
+via `ps -ef`, `/proc/<pid>/cmdline`, `ps -o command`, and on macOS
+`proc_pidinfo(PROC_PIDARGS)`. A single race-window observation by any
+unprivileged local process during provisioning was sufficient to capture
+the cleartext password (issue #15).
+
+The fix introduces [`lib/grq_sysadm.sh`](lib/grq_sysadm.sh), a small
+root-only helper that drives `sysadminctl` in interactive mode
+(`-password -` / `-newPassword -`). It allocates a pty via
+`/usr/bin/expect`, spawns sysadminctl, then sends the password over the
+pty when the prompt appears. The password is read directly from the
+root-owned `0600` file at `/var/root/grq/passwords/<user>.secret` and
+is never on the argv of any process the parent script spawns.
+
+```mermaid
+sequenceDiagram
+    participant Parent as MacOS/setup.sh (admin)
+    participant Sudo as sudo grq_sysadm.sh (root)
+    participant Expect as expect (pty)
+    participant Sysadm as sysadminctl
+
+    Parent->>Parent: ensure_user_password(rocket)
+    Note over Parent: persists /var/root/grq/passwords/rocket.secret 0600
+    Parent->>Sudo: --password-file <path> add USERNAME ...
+    Sudo->>Sudo: read password from 0600 file
+    Sudo->>Expect: spawn sysadminctl ... -password -
+    Expect->>Sysadm: argv: [..., "-password", "-", ...]
+    Sysadm-->>Expect: "Password:" prompt on pty
+    Expect->>Sysadm: write password to pty
+    Sysadm-->>Sudo: exit status
+    Sudo-->>Parent: propagated status
+```
+
+The helper rejects password files that are not mode `0600`, and refuses
+to run unless the EUID is 0 (so it cannot be tricked into reading an
+arbitrary file as an unprivileged user). The Ubuntu path is unaffected:
+`echo "$user:$pw" | sudo chpasswd` already feeds chpasswd via stdin, so
+the password never reaches chpasswd's argv, and the parent script no
+longer accepts the password as `$2` (issue #18).
+
+To verify locally that no password leaks via argv during provisioning,
+run `bash tests/sysadm_argv_test.sh` — its functional test mocks
+`sysadminctl`, records the mock's argv, and asserts the secret only
+appears in the pty-delivered prompt response.
+
+---
+
 ## SSH host-key pinning for the admin LAN
 
 Every provisioned node bootstraps onto the GRQ admin LAN by SSHing to
