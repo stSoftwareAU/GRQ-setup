@@ -46,6 +46,10 @@ NODE_NUMBER="$1"
 AUTOMATED_PASSWORD_DEPRECATED="${2:-}"
 CREATE_ELEPHANT="${3:-}"
 HOSTNAME="GRQ-${NODE_NUMBER}"
+# Retained for compatibility with downstream scripts that may read this
+# variable from the environment. shellcheck SC2034 is silenced because
+# the assignment exists for documentation / external consumers.
+# shellcheck disable=SC2034
 CURRENT_USER=$(whoami)
 
 if [[ -n "$AUTOMATED_PASSWORD_DEPRECATED" ]]; then

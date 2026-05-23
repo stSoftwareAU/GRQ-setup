@@ -6,7 +6,7 @@
 set -uo pipefail
 
 BASE_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-cd "${BASE_DIR}"
+cd "${BASE_DIR}" || exit 1
 
 RC=0
 note()  { printf '[quality] %s\n' "$1"; }
@@ -18,7 +18,7 @@ for f in \
     MacOS/setup.sh MacOS/add-user.sh \
     Ubuntu/setup.sh \
     lib/verify_installer.sh lib/pinned_versions.sh lib/per_user_password.sh lib/grq_sysadm.sh lib/input_validation.sh \
-    tests/verify_installer_test.sh tests/generated_user_setup_test.sh tests/heredoc_render_test.sh tests/ssh_tofu_test.sh tests/per_user_password_test.sh tests/sysadm_argv_test.sh tests/input_validation_test.sh \
+    tests/verify_installer_test.sh tests/generated_user_setup_test.sh tests/heredoc_render_test.sh tests/ssh_tofu_test.sh tests/per_user_password_test.sh tests/sysadm_argv_test.sh tests/input_validation_test.sh tests/shellcheck_workflow_test.sh \
     quality.sh; do
   if [[ -f "$f" ]]; then
     if ! bash -n "$f" < /dev/null; then
@@ -83,6 +83,11 @@ fi
 note "tests/input_validation_test.sh"
 if ! bash tests/input_validation_test.sh < /dev/null; then
   fail "input_validation_test.sh"
+fi
+
+note "tests/shellcheck_workflow_test.sh"
+if ! bash tests/shellcheck_workflow_test.sh < /dev/null; then
+  fail "shellcheck_workflow_test.sh"
 fi
 
 if (( RC == 0 )); then

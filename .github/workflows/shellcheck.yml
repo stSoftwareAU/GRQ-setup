@@ -1,0 +1,25 @@
+name: ShellCheck
+
+# Lints shell scripts in pull requests using ShellCheck at warning
+# severity (Issue #25). Third-party actions are pinned to 40-char
+# commit SHAs per the project supply-chain policy (Issue #1613).
+
+on:
+  pull_request:
+    branches: ["*"]
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout@v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      # ludeeus/action-shellcheck@2.0.0
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38
+        with:
+          scandir: .
+          severity: warning
