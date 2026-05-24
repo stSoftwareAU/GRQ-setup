@@ -389,3 +389,126 @@ change is surfaced as an error instead of silently overwriting the pin.
 
 A mismatch is a potential MITM. Stop, investigate the admin hosts, and
 do not re-pin until the discrepancy is explained.
+
+---
+
+## Input validation for provisioning arguments
+
+`MacOS/setup.sh`, `MacOS/add-user.sh`, and `Ubuntu/setup.sh` accept
+operator-supplied values (`$USERNAME`, `$NODE_NUMBER`) that are
+interpolated into root-owned LaunchDaemon plist paths, plist XML
+bodies, and crontab fragments. Without validation, an unattended
+provisioning wrapper that sources these values from a config file or
+remote API could be coerced into:
+
+- writing a root-owned file at an attacker-chosen location via path
+  traversal in `$USERNAME` (e.g. `../../etc/cron.d/x`), or
+- smuggling XML fragments into the plist body and overriding the
+  daemon's effective UID at next boot.
+
+[`lib/input_validation.sh`](lib/input_validation.sh) (issue #19) is
+sourced by every parent setup script and provides:
+
+- `validate_username` — fail-closed allowlist regex
+  (`^[a-z_][a-z0-9_-]{0,31}$`).
+- `validate_node_number` — numeric and bounded.
+- `xml_escape` — round-trip-safe escape for any value embedded in
+  plist XML.
+
+Each helper exits 1 with a clear `Invalid …` message on bad input
+**before** any `sudo` invocation, so a malformed argument can never
+reach a privileged side effect. Coverage lives in
+[`tests/input_validation_test.sh`](tests/input_validation_test.sh).
+
+---
+
+## Development & testing
+
+### Local quality gate
+
+`./quality.sh` runs the full local quality gate. Every step redirects
+stdin from `/dev/null` so the gate cannot hang on an unattended
+worker.
+
+```bash
+./quality.sh < /dev/null
+```
+
+The gate runs, in order:
+
+1. `bash -n` syntax check on every shell source under `MacOS/`,
+   `Ubuntu/`, `lib/`, `tests/`, and `quality.sh`.
+2. `shellcheck --severity=error` over the production scripts
+   (skipped with a notice if shellcheck is not installed).
+3. `markdownlint-cli2` against every `*.md` file using
+   [`.markdownlint-cli2.jsonc`](.markdownlint-cli2.jsonc)
+   (skipped with a notice if not installed).
+4. The unit-test suite under [`tests/`](tests/).
+
+Install the optional linters with:
+
+```bash
+brew install shellcheck                 # macOS
+sudo apt-get install -y shellcheck      # Ubuntu
+npm install -g markdownlint-cli2        # both
+```
+
+### Test suite
+
+The [`tests/`](tests/) directory holds the bash unit tests that
+back each hardened helper. Run an individual test directly:
+
+```bash
+bash tests/per_user_password_test.sh < /dev/null
+```
+
+| Test file | Covers |
+| --- | --- |
+| `verify_installer_test.sh` | Pinned-installer SHA-256 verification (issue #16) |
+| `pinned_versions.sh` (via above) | Pinned URL / hash table |
+| `per_user_password_test.sh` | Per-user random passwords (issue #18) |
+| `sysadm_argv_test.sh` | `sysadminctl` argv leak prevention (issue #15) |
+| `ssh_tofu_test.sh` | SSH host-key pinning on the admin LAN (issue #17) |
+| `input_validation_test.sh` | Username / node-number / XML-escape validators (issue #19) |
+| `generated_user_setup_test.sh` | Per-user `~/setup.sh` heredoc rendering |
+| `heredoc_render_test.sh` | Heredoc-driven config rendering |
+| `shellcheck_workflow_test.sh` | CI ShellCheck workflow shape |
+| `readme_documentation_test.sh` | This documentation contract (issue #27) |
+
+### Continuous integration
+
+The workflows under [`.github/workflows/`](.github/workflows/) run on
+every pull request. Each third-party action is pinned to a 40-character
+commit SHA so a hijacked tag cannot exfiltrate CI secrets.
+
+| Workflow | Enforces |
+| --- | --- |
+| `shellcheck.yml` | ShellCheck warning-level lint over every shell script |
+| `markdown-lint.yml` | `markdownlint-cli2` on Markdown sources |
+| `gitleaks.yml` | Secret detection in the PR diff |
+| `semgrep.yml` | Static analysis for common security anti-patterns |
+| `dependency-review.yml` | Vulnerable-dependency review for the PR |
+
+The local `./quality.sh` is intentionally a strict subset of CI —
+if it passes locally, CI should pass too.
+
+```mermaid
+flowchart LR
+    Dev[Developer] --> Q[./quality.sh]
+    Q --> S[bash -n + shellcheck + markdownlint + tests/]
+    S -->|all green| Push[git push]
+    Push --> CI[GitHub Actions]
+    CI --> SC[shellcheck.yml]
+    CI --> ML[markdown-lint.yml]
+    CI --> GL[gitleaks.yml]
+    CI --> SG[semgrep.yml]
+    CI --> DR[dependency-review.yml]
+    SC & ML & GL & SG & DR -->|all green| Merge[Merge to Develop]
+```
+
+### PR summary archive
+
+Every PR ships with a summary file at
+`docs/archive/pr-summaries/pr-summary-<issue>.md` (the canonical home
+per Issue #2173). The archive directory is the single source of truth —
+do not leave summaries scattered in `docs/` root.
